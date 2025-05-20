@@ -62,7 +62,7 @@ export class BotService implements OnModuleInit {
       const query = `username=${username}&userId=${userId}&inlineMessageId=${inlineMessageId}&name=${name}`
 
       this.bot.answerCallbackQuery(callbackQuery.id, {
-        url: `https://ae4f-151-27-71-76.ngrok-free.app?${query}`
+        url: `https://014a-151-27-71-76.ngrok-free.app?${query}`
       });
     });
 
