@@ -27,6 +27,8 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.0.12",
     "@nestjs/websockets": "^11.0.12",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
     "grammy": "^1.36.1",
     "ioredis": "^5.6.0",
     "node-telegram-bot-api": "^0.66.0",

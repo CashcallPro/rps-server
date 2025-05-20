@@ -7,15 +7,18 @@ import { GameService } from './game/game.service';
 import { GameGateway } from './game/game.gateway';
 import { BotService } from './bot/bot.service';
 import { ConfigModule } from '@nestjs/config';
+import { BotController } from './bot/bot.controller';
+import { BotModule } from './bot/bot.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    GameModule
+    GameModule,
+    BotModule
   ],
   controllers: [AppController],
-  providers: [AppService, RedisService, GameGateway, BotService],
+  providers: [AppService, RedisService, GameGateway],
 })
 export class AppModule { }

@@ -26,6 +26,18 @@ export class BotService implements OnModuleInit {
     this.logger.log('BotService initialized.');
   }
 
+  // todo: add controller route 
+  async sendGameScore(clientInlineMessageId: string, userId: number, score: number) {
+    this.bot.setGameScore(
+      userId,
+      score,
+      {
+        inline_message_id: clientInlineMessageId,
+        force: true
+      }
+    )
+  }
+
   private initializeBot() {
     // It's important to ensure this.botToken and this.gameShortName are loaded before this runs
     // The constructor and OnModuleInit lifecycle ensure this.
@@ -35,20 +47,28 @@ export class BotService implements OnModuleInit {
       const chatId = msg.chat.id;
       this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);
       this.bot.sendGame(chatId, this.gameShortName!)
-        .then(() => this.logger.log(`Game "${this.gameShortName}" sent to chat ${chatId}`))
+        .then(() => {
+          this.logger.log(`Game "${this.gameShortName}" sent to chat ${chatId}`)
+        })
         .catch(err => this.logger.error(`Error sending game to ${chatId}:`, err.response?.body || err.message || err));
     });
 
     this.bot.on("callback_query", (callbackQuery) => {
+      const userId = callbackQuery.from.id
+      const inlineMessageId = callbackQuery.inline_message_id ?? ''
+      const username = callbackQuery.from.username
+      const name = callbackQuery.from.first_name
+
+      const query = `username=${username}&userId=${userId}&inlineMessageId=${inlineMessageId}&name=${name}`
 
       this.bot.answerCallbackQuery(callbackQuery.id, {
-        url: `https://ae4f-151-27-71-76.ngrok-free.app?username=${callbackQuery.from.username}`
+        url: `https://ae4f-151-27-71-76.ngrok-free.app?${query}`
       });
     });
 
     this.bot.on('message', (msg) => {
       const chatId = msg.chat.id;
-
+      console.log({ chatId })
       // send a message to the chat acknowledging receipt of their message
       this.bot.sendMessage(chatId, 'Received your message');
     });
