@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { RedisService } from 'src/redis/redis.provider';
 import { Player } from 'src/types/player';
 import { Logger } from '@nestjs/common'; // For better logging
+import { ConfigService } from '@nestjs/config';
 
 type Choice = 'rock' | 'paper' | 'scissors';
 
@@ -32,7 +33,20 @@ interface SessionData {
 @WebSocketGateway({ cors: true })
 export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
 
-  constructor(private readonly redisService: RedisService) { }
+
+  private readonly timeoutDuration: number = 5000;
+
+  constructor(
+    private readonly redisService: RedisService,
+    private configService: ConfigService
+  ) {
+
+    this.timeoutDuration = parseInt(this.configService.getOrThrow<string>('TURN_TIMEOUT_DURATION_MS'));
+
+    if (!this.timeoutDuration) {
+      throw new Error('TELEGRAM_GAME_URL is not defined in environment variables for BotService');
+    }
+  }
 
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(GameGateway.name);

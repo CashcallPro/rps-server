@@ -8,16 +8,21 @@ export class BotService implements OnModuleInit {
   private bot: TelegramBot;
   private readonly botToken: string | undefined;
   private readonly gameShortName: string | undefined;
+  private readonly telegramGameUrl: string | undefined;
 
   constructor(private configService: ConfigService) {
     this.botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     this.gameShortName = this.configService.get<string>('TELEGRAM_GAME_SHORTNAME');
+    this.telegramGameUrl = this.configService.get<string>('TELEGRAM_GAME_URL');
 
     if (!this.botToken) {
       throw new Error('BOT_TOKEN is not defined in environment variables for BotService');
     }
     if (!this.gameShortName) {
       throw new Error('GAME_SHORT_NAME is not defined in environment variables for BotService');
+    }
+    if (!this.telegramGameUrl) {
+      throw new Error('TELEGRAM_GAME_URL is not defined in environment variables for BotService');
     }
   }
 
@@ -62,7 +67,7 @@ export class BotService implements OnModuleInit {
       const query = `username=${username}&userId=${userId}&inlineMessageId=${inlineMessageId}&name=${name}`
 
       this.bot.answerCallbackQuery(callbackQuery.id, {
-        url: `https://014a-151-27-71-76.ngrok-free.app?${query}`
+        url: `${this.telegramGameUrl}?${query}`
       });
     });
 
