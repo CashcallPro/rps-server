@@ -15,12 +15,18 @@ import { Logger } from '@nestjs/common'; // For better logging
 
 type Choice = 'rock' | 'paper' | 'scissors';
 
+interface Score {
+  [playerId: string]: number
+}
+
 interface SessionData {
   players: Player[];
   startTime: number;
   choices: { [socketId: string]: Choice | null };
   // scores: { [socketId: string]: number }; // If you add scores
   lastActivity: number;
+
+  scores: Score
 }
 
 @WebSocketGateway({ cors: true })
@@ -35,6 +41,8 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   // In-memory map to store active turn timers. Key: `sessionId_waitingPlayerSocketId`
   private activeTurnTimers: Map<string, NodeJS.Timeout> = new Map();
   private readonly TURN_TIMEOUT_DURATION_MS = 5000; // 5 seconds
+  // private readonly 
+  // 
 
   afterInit(server: Server) {
     this.logger.log('WebSocket Gateway Initialized');
@@ -75,13 +83,13 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   private async processRoundCompletion(
     sessionData: SessionData,
     sessionId: string,
-    player1Id: string, player1Choice: Choice | null, // Choice can be null if timed out
-    player2Id: string, player2Choice: Choice | null, // Choice can be null if timed out
+    currentPlayerId: string, currentPlayerChoice: Choice | null, // Choice can be null if timed out
+    opponentId: string, opponentChoice: Choice | null, // Choice can be null if timed out
     reasonPlayer1?: string, // Optional reason for display (e.g., "Opponent timed out")
     reasonPlayer2?: string  // Optional reason for display (e.g., "You timed out")
   ) {
-    const player1Info = sessionData.players.find(p => p.socketId === player1Id);
-    const player2Info = sessionData.players.find(p => p.socketId === player2Id);
+    const player1Info = sessionData.players.find(p => p.socketId === currentPlayerId);
+    const player2Info = sessionData.players.find(p => p.socketId === opponentId);
 
     if (!player1Info || !player2Info) {
       this.logger.error(`Players not found in processRoundCompletion for session ${sessionId}`);
@@ -91,44 +99,71 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     let player1ResultMsg: string;
     let player2ResultMsg: string;
 
-    if (!player1Choice) { // Player 1 timed out
+    if (!sessionData.scores) {
+      this.logger.warn(`Scores object missing in sessionData for session ${sessionId}. Initializing.`);
+      sessionData.scores = { currentPlayerId: 0, opponentId: 0 };
+    }
+    if (sessionData.scores[currentPlayerId] === undefined) sessionData.scores[currentPlayerId] = 0;
+    if (sessionData.scores[opponentId] === undefined) sessionData.scores[opponentId] = 0;
+
+    if (!currentPlayerChoice) { // Player 1 timed out
       player1ResultMsg = 'You lost!';
       player2ResultMsg = 'You won!';
-    } else if (!player2Choice) { // Player 2 timed out
+
+      sessionData.scores[opponentId] += 1
+
+    } else if (!opponentChoice) { // Player 2 timed out
       player1ResultMsg = 'You won!';
       player2ResultMsg = 'You lost!';
+
+      sessionData.scores[currentPlayerId] += 1
+
     } else { // Both made choices
-      const outcomeForPlayer1 = this.determineOutcome(player1Choice, player2Choice);
+      const outcomeForPlayer1 = this.determineOutcome(currentPlayerChoice, opponentChoice);
       if (outcomeForPlayer1 === 'win') {
         player1ResultMsg = 'You won!';
         player2ResultMsg = 'You lost!';
+
+        sessionData.scores[currentPlayerId] += 1
+
       } else if (outcomeForPlayer1 === 'loss') {
         player1ResultMsg = 'You lost!';
         player2ResultMsg = 'You won!';
+
+        sessionData.scores[opponentId] += 1
+
       } else {
         player1ResultMsg = "It's a tie!";
         player2ResultMsg = "It's a tie!";
       }
     }
 
-    this.server.to(player1Id).emit('round_result', {
-      yourChoice: player1Choice,
-      opponentChoice: player2Choice,
+    this.server.to(currentPlayerId).emit('round_result', {
+      yourChoice: currentPlayerChoice,
+      opponentChoice: opponentChoice,
       result: player1ResultMsg,
       reason: reasonPlayer1 || '', // Send reason if any
+      scores: {
+        currentPlayer: sessionData.scores[currentPlayerId],
+        opponent: sessionData.scores[opponentId]
+      }
     });
-    this.server.to(player2Id).emit('round_result', {
-      yourChoice: player2Choice,
-      opponentChoice: player1Choice,
+    this.server.to(opponentId).emit('round_result', {
+      yourChoice: opponentChoice,
+      opponentChoice: currentPlayerChoice,
       result: player2ResultMsg,
-      reason: reasonPlayer2 || '', // Send reason if any
+      reason: reasonPlayer2 || '', // Send reason if any      
+      scores: {
+        currentPlayer: sessionData.scores[opponentId],
+        opponent: sessionData.scores[currentPlayerId]
+      }
     });
 
-    this.logger.log(`Round result for session ${sessionId}: ${player1Info.username} (${player1Choice || 'timed out'}) vs ${player2Info.username} (${player2Choice || 'timed out'}).`);
+    this.logger.log(`Round result for session ${sessionId}: ${player1Info.username} (${currentPlayerChoice || 'timed out'}) vs ${player2Info.username} (${opponentChoice || 'timed out'}). round result: ${sessionData.scores}`);
 
     // Reset choices for the next round in the session data
-    sessionData.choices[player1Id] = null;
-    sessionData.choices[player2Id] = null;
+    sessionData.choices[currentPlayerId] = null;
+    sessionData.choices[opponentId] = null;
     sessionData.lastActivity = Date.now();
     await this.redisService.set(sessionId, JSON.stringify(sessionData));
     this.logger.log(`Choices reset for session ${sessionId} for next round.`);
@@ -161,12 +196,18 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
       if (!player1 || !player2) { /* ... error handling ... */ return; }
 
+      const initialScores: Score = {
+        currentPlayer: 0,
+        opponent: 0,
+      };
+
       const sessionId = `session_${Date.now()}_${player1.socketId.slice(-4)}_${player2.socketId.slice(-4)}`;
       const sessionData: SessionData = {
         players: [player1, player2],
         startTime: Date.now(),
         choices: { [player1.socketId]: null, [player2.socketId]: null },
         lastActivity: Date.now(),
+        scores: initialScores
       };
 
       try {
@@ -227,7 +268,6 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       sessionData.choices[currentPlayerId] = choice;
       sessionData.lastActivity = Date.now();
       this.logger.log(`Player ${currentPlayerInfo.username} in session ${sessionId} chose: ${choice}`);
-
 
       const opponentInfo = sessionData.players.find(p => p.socketId !== currentPlayerId);
       if (!opponentInfo) {
