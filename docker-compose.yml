@@ -1,0 +1,26 @@
+version: '3.8' # Or a newer compatible version
+
+services:
+  redis-server:
+    image: redis
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    restart: always # Good practice for services like Redis
+
+  mongodb:
+    image: mongo # You can specify a version, e.g., mongo:6.0 or mongo:latest
+    container_name: mongo-server
+    ports:
+      - "27017:27017" # Default MongoDB port
+    environment:
+      # These are for creating an initial root user.
+      # IMPORTANT: Change these default credentials for any real application!
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: examplepassword
+    volumes:
+      - mongodata:/data/db # Persist MongoDB data
+    restart: always # Good practice for databases
+
+volumes:
+  mongodata: {} # Defines the named volume for MongoDB data persistence
