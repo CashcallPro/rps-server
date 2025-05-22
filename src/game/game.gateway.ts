@@ -13,6 +13,7 @@ import { RedisService } from 'src/redis/redis.provider';
 import { Player } from 'src/types/player';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { UsersService } from 'src/users/users.service';
 
 type Choice = 'rock' | 'paper' | 'scissors';
 
@@ -57,6 +58,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   constructor(
     private readonly redisService: RedisService,
     private configService: ConfigService,
+    private userService: UsersService
   ) {
     const configuredTurnTimeout = this.configService.get<string>('TURN_TIMEOUT_DURATION_MS');
     if (!configuredTurnTimeout) {
@@ -198,16 +200,16 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     });
 
     if (!opponentId.startsWith(this.BOT_ID_PREFIX)) {
-        this.server.to(opponentId).emit('round_result', {
+      this.server.to(opponentId).emit('round_result', {
         yourChoice: opponentChoice,
         opponentChoice: currentPlayerChoice,
         result: player2ResultMsg,
         reason: reasonPlayer2 || '',
         scores: {
-            currentPlayer: sessionData.scores[opponentId],
-            opponent: sessionData.scores[currentPlayerId],
+          currentPlayer: sessionData.scores[opponentId],
+          opponent: sessionData.scores[currentPlayerId],
         },
-        });
+      });
     }
 
 
@@ -225,6 +227,12 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const clientId = client.id;
     this.logger.log(`User ${data.username} (Socket ID: ${clientId}) attempting to join matchmaking.`);
 
+    try {
+      this.userService.create({ coins: 0, username: data.username })
+    } catch (e) {
+      this.logger.debug(e)
+    }
+
     const isAlreadyInQueue = this.matchmakingQueue.some(p => p.socketId === clientId);
     if (isAlreadyInQueue) {
       this.logger.warn(`Socket ${clientId} (User: ${data.username}) is already in the matchmaking queue.`);
@@ -233,9 +241,9 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     if (this.socketToSessionMap.has(clientId)) {
-        this.logger.warn(`User ${data.username} (Socket ID: ${clientId}) is already in an active session: ${this.socketToSessionMap.get(clientId)}. Cannot join matchmaking.`);
-        client.emit('already_in_session', { message: 'You are already in an active game session.' });
-        return;
+      this.logger.warn(`User ${data.username} (Socket ID: ${clientId}) is already in an active session: ${this.socketToSessionMap.get(clientId)}. Cannot join matchmaking.`);
+      client.emit('already_in_session', { message: 'You are already in an active game session.' });
+      return;
     }
 
     const player: Player = { socketId: clientId, username: data.username };
@@ -250,7 +258,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.logger.log(`Cleared bot matchmaking timer for ${firstPlayerInQueueId} as a real match was found.`);
       }
       const secondPlayerInQueueId = this.matchmakingQueue[1].socketId;
-       if (this.matchmakingBotTimers.has(secondPlayerInQueueId)) {
+      if (this.matchmakingBotTimers.has(secondPlayerInQueueId)) {
         clearTimeout(this.matchmakingBotTimers.get(secondPlayerInQueueId)!);
         this.matchmakingBotTimers.delete(secondPlayerInQueueId);
         this.logger.log(`Cleared bot matchmaking timer for ${secondPlayerInQueueId} as a real match was found (precautionary).`);
@@ -310,8 +318,8 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   private async matchWithBot(playerSocketId: string) {
     this.logger.log(`Attempting to match player ${playerSocketId} with a bot.`);
     if (this.matchmakingBotTimers.has(playerSocketId)) {
-        clearTimeout(this.matchmakingBotTimers.get(playerSocketId)!);
-        this.matchmakingBotTimers.delete(playerSocketId);
+      clearTimeout(this.matchmakingBotTimers.get(playerSocketId)!);
+      this.matchmakingBotTimers.delete(playerSocketId);
     }
 
 
@@ -329,6 +337,8 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       socketId: `${this.BOT_ID_PREFIX}${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       username: this.getRandomBotName(), // Use the new method here
     };
+
+    this.userService.create({ coins: 0, username: botPlayer.username })
 
     const initialScores: Score = {
       [player1.socketId]: 0,
@@ -424,7 +434,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
       if (sessionData.choices[currentPlayerId] !== null) {
         this.logger.log(`Player ${currentPlayerInfo.username} already chose in session ${sessionId}.`);
-        client.emit('choice_already_made', {message: 'You have already made your choice for this round.'});
+        client.emit('choice_already_made', { message: 'You have already made your choice for this round.' });
         return;
       }
 
@@ -449,7 +459,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
         client.emit('choice_registered', { message: 'Choice registered. Bot is making its move...' });
         setTimeout(async () => {
-            await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, botChoice);
+          await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, botChoice);
         }, 500);
 
       } else {
@@ -511,15 +521,15 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   private async cleanUpSession(sessionId: string, playerSocketIds: string[]) {
     this.clearAllTimersForSession(sessionId);
     try {
-        await this.redisService.del(sessionId);
-        this.logger.log(`Session ${sessionId} deleted from Redis.`);
+      await this.redisService.del(sessionId);
+      this.logger.log(`Session ${sessionId} deleted from Redis.`);
     } catch (delError) {
-        this.logger.error(`Error deleting session ${sessionId} from Redis:`, delError);
+      this.logger.error(`Error deleting session ${sessionId} from Redis:`, delError);
     }
     playerSocketIds.forEach(socketId => {
-        if (!socketId.startsWith(this.BOT_ID_PREFIX)) { // Don't try to delete bots from map
-            this.socketToSessionMap.delete(socketId);
-        }
+      if (!socketId.startsWith(this.BOT_ID_PREFIX)) { // Don't try to delete bots from map
+        this.socketToSessionMap.delete(socketId);
+      }
     });
     this.logger.log(`Socket to session map cleared for human players in session ${sessionId}.`);
   }
@@ -546,7 +556,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.logger.warn(`Session ${sessionId} not found for 'end_game' request by ${clientId}.`);
         client.emit('game_already_ended', { message: 'Game session not found or already ended.' });
         if (this.socketToSessionMap.get(clientId) === sessionId) {
-            this.socketToSessionMap.delete(clientId);
+          this.socketToSessionMap.delete(clientId);
         }
         return;
       }
@@ -564,9 +574,22 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const playerSocketIdsInSession: string[] = [];
 
       sessionData.players.forEach(p => {
+        const scores = sessionData.scores
+        const userScore = scores[clientId]
+
+        const players = sessionData.players
+
+        this.userService.addCoins(p.username, userScore * 2)
+
+        this.userService.addMatch(p.username, {
+          players: players.map(player => player.username),
+          scores: players.map(player => ({ username: player.username, score: scores[player.socketId] })),
+          sessionId: sessionId
+        })
+
         playerSocketIdsInSession.push(p.socketId);
         if (!p.socketId.startsWith(this.BOT_ID_PREFIX)) {
-            this.server.to(p.socketId).emit('game_ended', { message: endMessage, initiator: playerInitiating.username });
+          this.server.to(p.socketId).emit('game_ended', { message: endMessage, initiator: playerInitiating.username });
         }
       });
 

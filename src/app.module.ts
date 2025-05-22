@@ -11,6 +11,7 @@ import { BotController } from './bot/bot.controller';
 import { BotModule } from './bot/bot.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CompletedGame, CompletedGameSchema } from './game/schema/completed-game.schema';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -30,7 +31,8 @@ import { CompletedGame, CompletedGameSchema } from './game/schema/completed-game
       isGlobal: true,
     }),
     GameModule,
-    BotModule
+    BotModule,
+    UsersModule
   ],
   controllers: [AppController],
   providers: [AppService, RedisService, GameGateway],
