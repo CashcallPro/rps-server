@@ -31,7 +31,6 @@ export class BotService implements OnModuleInit {
     this.logger.log('BotService initialized.');
   }
 
-  // todo: add controller route 
   async sendGameScore(clientInlineMessageId: string, userId: number, score: number) {
     this.bot.setGameScore(
       userId,

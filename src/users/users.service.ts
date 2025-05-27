@@ -18,8 +18,7 @@ export class UsersService {
 
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    // ... (existing code)
+  async create(createUserDto: CreateUserDto): Promise<User> {    
     const createdUser = new this.userModel(createUserDto);
     try {
       return await createdUser.save();
@@ -71,7 +70,6 @@ export class UsersService {
   }
 
   async addCoins(username: string, amount: number): Promise<User> {
-    // ... (existing code)
     if (amount < 0) {
       throw new BadRequestException('Amount to add must be non-negative.');
     }

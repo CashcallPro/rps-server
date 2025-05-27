@@ -575,7 +575,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
       sessionData.players.forEach(p => {
         const scores = sessionData.scores
-        const userScore = scores[clientId]
+        const userScore = scores[p.socketId]
 
         const players = sessionData.players
 
