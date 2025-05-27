@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as TelegramBot from 'node-telegram-bot-api'; // Use * as import
+import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -10,7 +12,11 @@ export class BotService implements OnModuleInit {
   private readonly gameShortName: string | undefined;
   private readonly telegramGameUrl: string | undefined;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly userService: UsersService
+  ) {
+
     this.botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     this.gameShortName = this.configService.get<string>('TELEGRAM_GAME_SHORTNAME');
     this.telegramGameUrl = this.configService.get<string>('TELEGRAM_GAME_URL');
@@ -57,6 +63,51 @@ export class BotService implements OnModuleInit {
         .catch(err => this.logger.error(`Error sending game to ${chatId}:`, err.response?.body || err.message || err));
     });
 
+    this.bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
+      const chatId = msg.chat.id;
+      const username = msg?.from?.username || `${msg?.from?.first_name} ${msg?.from?.last_name || ''}`.trim();
+      const userId = msg?.from?.id.toString() || username;
+      const referralCode = match?.[1];
+
+      this.logger.log(`Received /start command from ${username} (ID: ${userId}) referralCode: ${referralCode}`);
+
+      if (referralCode == userId) {
+        this.sendMessage(chatId, 'You can\'t refer yourself')
+      }
+
+      const userExists = await this.userService.findOneByTelegramUserId(userId)
+
+      if (userExists) {
+
+        this.sendMessage(chatId, "You have already joined!")
+        return
+      }
+
+      const user: CreateUserDto = {
+        coins: 0,
+        username: username,
+        telegramUserId: userId,
+      }
+
+      if (referralCode) {
+        // await this.handleReferral(chatId, userId, username, referralCode);
+        user.refereeId = referralCode
+
+        const refereeUser = await this.userService.findOneByTelegramUserId(referralCode)
+
+        this.userService.updateByTelegramId(referralCode, { referralToAdd: userId })
+
+        this.sendMessage(chatId, `You have joined using ${refereeUser?.username}'s referral code`)
+      }
+
+      await this.userService.create(user)
+    });
+
+    this.bot.onText(/\/refer/, (msg) => {
+      const message = `Here's your referral link: https://t.me/rpstestinggroundsbot?start=${msg.from?.id}`
+      this.sendMessage(msg.chat.id, message)
+    })
+
     this.bot.on("callback_query", (callbackQuery) => {
       const userId = callbackQuery.from.id
       const inlineMessageId = callbackQuery.inline_message_id ?? ''
@@ -74,9 +125,8 @@ export class BotService implements OnModuleInit {
       const chatId = msg.chat.id;
       console.log({ chatId })
       // send a message to the chat acknowledging receipt of their message
-      this.bot.sendMessage(chatId, 'Received your message');
+      // this.bot.sendMessage(chatId, 'Received your message');
     });
-
 
     this.bot.on('inline_query', (query) => {
       const inlineQueryId = query.id;

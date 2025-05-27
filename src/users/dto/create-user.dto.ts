@@ -5,6 +5,13 @@ export class CreateUserDto {
   @IsNotEmpty()
   username: string;
 
+  @IsString()
+  @IsNotEmpty()
+  telegramUserId: string;
+
+  @IsString()
+  refereeId?: string;
+
   @IsNumber()
   @Min(0)
   coins: number;

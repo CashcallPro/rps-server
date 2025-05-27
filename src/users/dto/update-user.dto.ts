@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateUserDto } from './create-user.dto';
-import { IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 // You can use PartialType to make all properties optional
 // export class UpdateUserDto extends PartialType(CreateUserDto) {}
@@ -12,10 +12,7 @@ export class UpdateUserDto {
   @Min(0)
   coins?: number;
 
-  // Note: Username updates are often handled differently or disallowed.
-  // If you want to allow username updates, add it here:
-  // @IsOptional()
-  // @IsString()
-  // @IsNotEmpty()
-  // username?: string;
+  @IsOptional()
+  @IsString({ message: 'Each referral item must be a string.' })
+  referralToAdd?: string;
 }

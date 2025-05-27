@@ -15,7 +15,7 @@ export const ScoreEntrySchema = SchemaFactory.createForClass(ScoreEntry);
 
 // --- Sub-schema for a Match ---
 @Schema({ _id: false, timestamps: true }) // _id: false if sessionId is the primary identifier within the array.
-                                        // timestamps: true will add createdAt/updatedAt to each match entry.
+// timestamps: true will add createdAt/updatedAt to each match entry.
 export class Match {
   @Prop({ required: true, index: true }) // `index: true` if you plan to query matches by sessionId often
   sessionId: string;
@@ -36,6 +36,15 @@ export type UserDocument = HydratedDocument<User>;
 export class User {
   @Prop({ required: true, unique: true, trim: true, index: true })
   username: string;
+
+  @Prop({ required: true, unique: true })
+  telegramUserId: string;
+
+  @Prop({ required: false })
+  refereeId: string;
+
+  @Prop({ required: false, default: [], type: [String]})
+  referrals: string[];
 
   @Prop({ required: true, default: 0, min: 0 })
   coins: number;

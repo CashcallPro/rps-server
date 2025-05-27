@@ -18,7 +18,8 @@ export class UsersService {
 
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {    
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    this.logger.log('user to create', `name: ${createUserDto.username}, referee: ${createUserDto.refereeId}`)
     const createdUser = new this.userModel(createUserDto);
     try {
       return await createdUser.save();
@@ -43,12 +44,58 @@ export class UsersService {
     return user;
   }
 
+  async findOneByTelegramUserId(userId: string) {
+    const user = await this.userModel.findOne({ telegramUserId: userId }).exec();
+    if (!user) {
+      return null
+    }
+    return user;
+  }
+
   async findById(id: string): Promise<User> { // Return User, not User | null
     const user = await this.userModel.findById(id).exec();
     if (!user) {
       throw new NotFoundException(`User with ID '${id}' not found`);
     }
     return user;
+  }
+
+  async updateByTelegramId(userId: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const { referralToAdd, ...otherUpdates } = updateUserDto; // Destructure DTO
+
+    const updateOps: any = {};
+
+    if (Object.keys(otherUpdates).length > 0) {
+      Object.assign(updateOps, otherUpdates);
+    }
+
+    if (referralToAdd) {
+      if (referralToAdd.trim() === '') {
+        throw new BadRequestException('Referral code to add cannot be empty.');
+      }
+      updateOps.$push = { referrals: referralToAdd };
+    }
+
+    if (Object.keys(updateOps).length === 0) {
+      const existingUser = await this.userModel.findOne({ telegramUserId: userId }).exec();
+      if (!existingUser) {
+        throw new NotFoundException(`User with telegramId '${userId}' not found`);
+      }
+      return existingUser;
+    }
+
+    const updatedUser = await this.userModel
+      .findOneAndUpdate(
+        { telegramUserId: userId },
+        updateOps, 
+        { new: true }
+      )
+      .exec();
+
+    if (!updatedUser) {
+      throw new NotFoundException(`User with telegramId '${userId}' not found`);
+    }
+    return updatedUser;
   }
 
   async update(username: string, updateUserDto: UpdateUserDto): Promise<User> { // Return User, not User | null

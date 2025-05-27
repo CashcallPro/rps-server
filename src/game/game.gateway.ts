@@ -211,8 +211,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         },
       });
     }
-
-
+    
     this.logger.log(`Round result for session ${sessionId}: ${player1Info.username} (${currentPlayerChoice || 'timed out'}) vs ${player2Info.username} (${opponentChoice || 'timed out'}). Scores: P1=${sessionData.scores[currentPlayerId]}, P2=${sessionData.scores[opponentId]}`);
 
     sessionData.choices[currentPlayerId] = null;
@@ -223,12 +222,12 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   @SubscribeMessage('start')
-  async handleStart(@MessageBody() data: { username: string }, @ConnectedSocket() client: Socket) {
+  async handleStart(@MessageBody() data: { username: string, userId: string }, @ConnectedSocket() client: Socket) {
     const clientId = client.id;
-    this.logger.log(`User ${data.username} (Socket ID: ${clientId}) attempting to join matchmaking.`);
+    this.logger.log(`User ${data.username} id: ${data.userId} (Socket ID: ${clientId}) attempting to join matchmaking.`);
 
     try {
-      this.userService.create({ coins: 0, username: data.username })
+      this.userService.create({ coins: 0, username: data.username, telegramUserId: data.userId })
     } catch (e) {
       this.logger.debug(e)
     }
@@ -322,7 +321,6 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       this.matchmakingBotTimers.delete(playerSocketId);
     }
 
-
     const playerIndex = this.matchmakingQueue.findIndex(p => p.socketId === playerSocketId);
 
     if (playerIndex === -1 || this.matchmakingQueue.length !== 1 || this.matchmakingQueue[0].socketId !== playerSocketId) {
@@ -338,7 +336,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       username: this.getRandomBotName(), // Use the new method here
     };
 
-    this.userService.create({ coins: 0, username: botPlayer.username })
+    this.userService.create({ coins: 0, username: botPlayer.username, telegramUserId: botPlayer.username })
 
     const initialScores: Score = {
       [player1.socketId]: 0,
