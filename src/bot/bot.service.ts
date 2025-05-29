@@ -63,8 +63,7 @@ export class BotService implements OnModuleInit {
         .catch(err => this.logger.error(`Error sending game to ${chatId}:`, err.response?.body || err.message || err));
     });
 
-   //------------------------------ Listen for the /here command ------------------------------
-    this.bot.onText(/\/here(?: (.+))?/, async (msg, match) => { // <--- MODIFIED HERE
+    this.bot.onText(/\/here(?: (.+))?/, async (msg, match) => {
       const chatId = msg.chat.id;
 
       const welcomeMessage: string = `Welcome to PRS Titans Online Multiplayer Game!
@@ -100,7 +99,7 @@ You win -> take your cash 🚀`;
         .catch((error: Error) => {
           console.error(`Error sending message to ${chatId}:`, error.message);
         });
-    // ----------------------------------- /here command -----------------------------------------------
+    })
 
     this.bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
       const chatId = msg.chat.id;
