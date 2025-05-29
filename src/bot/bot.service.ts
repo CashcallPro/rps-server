@@ -63,6 +63,45 @@ export class BotService implements OnModuleInit {
         .catch(err => this.logger.error(`Error sending game to ${chatId}:`, err.response?.body || err.message || err));
     });
 
+   //------------------------------ Listen for the /here command ------------------------------
+    this.bot.onText(/\/here(?: (.+))?/, async (msg, match) => { // <--- MODIFIED HERE
+      const chatId = msg.chat.id;
+
+      const welcomeMessage: string = `Welcome to PRS Titans Online Multiplayer Game!
+
+PRS Titans is the first Win2Earn real-time multiplayer online game on TON blockchain
+
+You win -> take your cash 🚀`;
+
+      const options: TelegramBot.SendMessageOptions = {
+        // You can use 'HTML' or 'MarkdownV2' for text formatting
+        // parse_mode: 'HTML', // Example: if you wanted to use <b>bold</b> tags
+
+        reply_markup: {
+          inline_keyboard: [
+            // Each array within inline_keyboard represents a row of buttons
+            [
+              { text: 'Join Channel', url: 'https://t.me/rps_titans' } // Replace with actual URL
+            ],
+            [
+              { text: 'Referral', url: 'https://example.com/hamsterboost' } // TODO: on here user receive a referral link from us to share 
+            ],
+            [
+              { text: '💵 Earn More!', url: 'https://t.me/your_channel_username' } // TODO: this button would tell him the how to become group admin and earn revenue-share 
+            ]
+          ]
+        }
+      };
+
+      this.bot.sendMessage(chatId, welcomeMessage, options)
+        .then(() => {
+          console.log(`Sent welcome message with inline keyboard to chat ID: ${chatId} for /here command`);
+        })
+        .catch((error: Error) => {
+          console.error(`Error sending message to ${chatId}:`, error.message);
+        });
+    // ----------------------------------- /here command -----------------------------------------------
+
     this.bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
       const chatId = msg.chat.id;
       const username = msg?.from?.username || `${msg?.from?.first_name} ${msg?.from?.last_name || ''}`.trim();
