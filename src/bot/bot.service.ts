@@ -129,7 +129,7 @@ You win -> take your cash 🚀`;
       }
 
       if (referralCode) {
-        // await this.handleReferral(chatId, userId, username, referralCode);
+
         user.refereeId = referralCode
 
         const refereeUser = await this.userService.findOneByTelegramUserId(referralCode)

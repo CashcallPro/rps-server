@@ -17,6 +17,8 @@ import { UsersService } from 'src/users/users.service';
 
 type Choice = 'rock' | 'paper' | 'scissors';
 
+const ROUND_BET_AMOUNT = 10;
+
 interface Score {
   [playerId: string]: number;
 }
@@ -137,13 +139,14 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   private async processRoundCompletion(
     sessionData: SessionData,
     sessionId: string,
-    currentPlayerId: string, currentPlayerChoice: Choice | null,
-    opponentId: string, opponentChoice: Choice | null,
+    player1SocketId: string, player1Choice: Choice | null, // Renamed for clarity
+    player2SocketId: string, player2Choice: Choice | null, // Renamed for clarity
     reasonPlayer1?: string,
     reasonPlayer2?: string,
+    isBotRound?: boolean,
   ) {
-    const player1Info = sessionData.players.find(p => p.socketId === currentPlayerId);
-    const player2Info = sessionData.players.find(p => p.socketId === opponentId);
+    const player1Info = sessionData.players.find(p => p.socketId === player1SocketId);
+    const player2Info = sessionData.players.find(p => p.socketId === player2SocketId);
 
     if (!player1Info || !player2Info) {
       this.logger.error(`Players not found in processRoundCompletion for session ${sessionId}`);
@@ -152,73 +155,194 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     let player1ResultMsg: string;
     let player2ResultMsg: string;
+    let winnerSocketId: string | null = null;
+    let loserSocketId: string | null = null;
 
     if (!sessionData.scores) {
       this.logger.warn(`Scores object missing in sessionData for session ${sessionId}. Initializing.`);
       sessionData.scores = {
-        [currentPlayerId]: 0,
-        [opponentId]: 0,
+        [player1SocketId]: 0,
+        [player2SocketId]: 0,
       };
     }
-    if (sessionData.scores[currentPlayerId] === undefined) sessionData.scores[currentPlayerId] = 0;
-    if (sessionData.scores[opponentId] === undefined) sessionData.scores[opponentId] = 0;
+    if (sessionData.scores[player1SocketId] === undefined) sessionData.scores[player1SocketId] = 0;
+    if (sessionData.scores[player2SocketId] === undefined) sessionData.scores[player2SocketId] = 0;
 
-
-    if (!currentPlayerChoice) {
+    if (!player1Choice) {
       player1ResultMsg = 'You lost!';
       player2ResultMsg = 'You won!';
-      sessionData.scores[opponentId]++;
-    } else if (!opponentChoice) {
+      sessionData.scores[player2SocketId]++;
+      winnerSocketId = player2SocketId;
+      loserSocketId = player1SocketId;
+    } else if (!player2Choice) {
       player1ResultMsg = 'You won!';
       player2ResultMsg = 'You lost!';
-      sessionData.scores[currentPlayerId]++;
+      sessionData.scores[player1SocketId]++;
+      winnerSocketId = player1SocketId;
+      loserSocketId = player2SocketId;
     } else {
-      const outcomeForPlayer1 = this.determineOutcome(currentPlayerChoice, opponentChoice);
+      const outcomeForPlayer1 = this.determineOutcome(player1Choice, player2Choice);
       if (outcomeForPlayer1 === 'win') {
         player1ResultMsg = 'You won!';
         player2ResultMsg = 'You lost!';
-        sessionData.scores[currentPlayerId]++;
+        sessionData.scores[player1SocketId]++;
+        winnerSocketId = player1SocketId;
+        loserSocketId = player2SocketId;
       } else if (outcomeForPlayer1 === 'loss') {
         player1ResultMsg = 'You lost!';
         player2ResultMsg = 'You won!';
-        sessionData.scores[opponentId]++;
-      } else {
+        sessionData.scores[player2SocketId]++;
+        winnerSocketId = player2SocketId;
+        loserSocketId = player1SocketId;
+      } else { // Tie
         player1ResultMsg = "It's a tie!";
         player2ResultMsg = "It's a tie!";
+        // No winner or loser in a tie for coin transfer
       }
     }
 
-    this.server.to(currentPlayerId).emit('round_result', {
-      yourChoice: currentPlayerChoice,
-      opponentChoice: opponentChoice,
+    if (!isBotRound && winnerSocketId && loserSocketId) {
+      const winnerInfo = sessionData.players.find(p => p.socketId === winnerSocketId);
+      const loserInfo = sessionData.players.find(p => p.socketId === loserSocketId);
+
+      if (winnerInfo && loserInfo) {
+        try {
+          // Attempt to remove coins from loser
+          // The removeCoins method in UsersService should handle insufficient funds gracefully
+          // by throwing an error, but here we expect it to succeed if prior checks passed.
+          // However, there's a tiny race condition window.
+          await this.userService.removeCoins(loserInfo.username, ROUND_BET_AMOUNT);
+          this.logger.log(`Deducted ${ROUND_BET_AMOUNT} coins from loser ${loserInfo.username} in session ${sessionId}.`);
+
+          try {
+            // Add coins to winner
+            await this.userService.addCoins(winnerInfo.username, ROUND_BET_AMOUNT);
+            this.logger.log(`Added ${ROUND_BET_AMOUNT} coins to winner ${winnerInfo.username} in session ${sessionId}.`);
+          } catch (addError) {
+            this.logger.error(`CRITICAL: Failed to add coins to winner ${winnerInfo.username} after deducting from loser ${loserInfo.username}. Session: ${sessionId}. Error: ${addError.message}. Coins might be lost from system.`);
+            // This is a critical state. Consider how to handle (e.g., refund loser, flag for admin).
+            // For now, logging is the minimum.
+          }
+        } catch (removeError) {
+          this.logger.warn(`Failed to remove coins from loser ${loserInfo.username} in session ${sessionId} (Potentially insufficient funds despite prior checks, or other error): ${removeError.message}`);
+          // If loser couldn't pay, winner doesn't get coins from this bet.
+          // This scenario should ideally be caught *before* processRoundCompletion by checks in handleMakeChoice.
+          // If it happens here, it implies a race condition or a state not caught earlier.
+          // Update messages to reflect no coins exchanged if deduction failed.
+          if (winnerSocketId === player1SocketId) {
+            player1ResultMsg += ` (Opponent couldn't cover bet)`;
+            player2ResultMsg += ` (Bet voided)`;
+          } else {
+            player2ResultMsg += ` (Opponent couldn't cover bet)`;
+            player1ResultMsg += ` (Bet voided)`;
+          }
+        }
+      }
+      else if (isBotRound && winnerSocketId && loserSocketId) {
+        // Handle bot game "winnings/losses" if any (e.g. fixed reward for player winning)
+        // Example: If player wins against bot, give player HALF the bet amount as a bonus
+        if (winnerInfo && winnerInfo.socketId === player1SocketId && !winnerInfo.socketId.startsWith(this.BOT_ID_PREFIX)) { // Player won
+          try {
+            // await this.userService.addCoins(winnerInfo.username, ROUND_BET_AMOUNT / 2);
+            // this.logger.log(`Player ${winnerInfo.username} won against bot, awarded ${ROUND_BET_AMOUNT / 2} coins.`);
+            // player1ResultMsg += ` (+${ROUND_BET_AMOUNT / 2} coins bonus!)`;
+            // For now, let's assume no coin transactions for bot games to keep it simple.
+          } catch (e) {
+            this.logger.error(`Failed to award bot game bonus to ${winnerInfo.username}: ${e.message}`);
+          }
+        } else if (loserInfo && loserInfo.socketId === player1SocketId && !loserInfo.socketId.startsWith(this.BOT_ID_PREFIX)) { // Player lost
+          // Deduct from player if they lose to a bot?
+          // try {
+          //     await this.userService.removeCoins(loserInfo.username, ROUND_BET_AMOUNT / 2);
+          //     this.logger.log(`Player ${loserInfo.username} lost against bot, deducted ${ROUND_BET_AMOUNT / 2} coins.`);
+          //      player1ResultMsg += ` (-${ROUND_BET_AMOUNT / 2} coins)`;
+          // } catch (e) {
+          //      this.logger.warn(`Failed to deduct coins from ${loserInfo.username} after bot game loss: ${e.message}`);
+          // }
+        }
+      }
+    }
+
+    this.server.to(player1SocketId).emit('round_result', {
+      yourChoice: player1Choice,
+      opponentChoice: player2Choice,
       result: player1ResultMsg,
       reason: reasonPlayer1 || '',
       scores: {
-        currentPlayer: sessionData.scores[currentPlayerId],
-        opponent: sessionData.scores[opponentId],
+        currentPlayer: sessionData.scores[player1SocketId],
+        opponent: sessionData.scores[player2SocketId],
       },
     });
 
-    if (!opponentId.startsWith(this.BOT_ID_PREFIX)) {
-      this.server.to(opponentId).emit('round_result', {
-        yourChoice: opponentChoice,
-        opponentChoice: currentPlayerChoice,
+    if (!player2SocketId.startsWith(this.BOT_ID_PREFIX)) {
+      this.server.to(player2SocketId).emit('round_result', {
+        yourChoice: player2Choice,
+        opponentChoice: player1Choice,
         result: player2ResultMsg,
         reason: reasonPlayer2 || '',
         scores: {
-          currentPlayer: sessionData.scores[opponentId],
-          opponent: sessionData.scores[currentPlayerId],
+          currentPlayer: sessionData.scores[player2SocketId],
+          opponent: sessionData.scores[player1SocketId],
         },
       });
     }
-    
-    this.logger.log(`Round result for session ${sessionId}: ${player1Info.username} (${currentPlayerChoice || 'timed out'}) vs ${player2Info.username} (${opponentChoice || 'timed out'}). Scores: P1=${sessionData.scores[currentPlayerId]}, P2=${sessionData.scores[opponentId]}`);
 
-    sessionData.choices[currentPlayerId] = null;
-    sessionData.choices[opponentId] = null;
+    this.logger.log(`Round result for session ${sessionId}: ${player1Info.username} (${player1Choice || 'timed out'}) vs ${player2Info.username} (${player2Choice || 'timed out'}). Scores: P1=${sessionData.scores[player1SocketId]}, P2=${sessionData.scores[player2SocketId]}`);
+
+    sessionData.choices[player1SocketId] = null;
+    sessionData.choices[player2SocketId] = null;
     sessionData.lastActivity = Date.now();
     await this.redisService.set(sessionId, JSON.stringify(sessionData));
     this.logger.log(`Choices reset for session ${sessionId} for next round.`);
+
+    if (!isBotRound) {
+      let p1CanContinue = true;
+      let p2CanContinue = true;
+      let p1Balance = 0;
+      let p2Balance = 0;
+
+      try {
+        const user1 = await this.userService.findOneByUsername(player1Info.username);
+        p1Balance = user1.coins;
+        if (user1.coins < ROUND_BET_AMOUNT) p1CanContinue = false;
+      } catch (e) { p1CanContinue = false; /* assume cannot continue on error */ }
+
+      try {
+        const user2 = await this.userService.findOneByUsername(player2Info.username);
+        p2Balance = user2.coins;
+        if (user2.coins < ROUND_BET_AMOUNT) p2CanContinue = false;
+      } catch (e) { p2CanContinue = false; /* assume cannot continue on error */ }
+
+      if (!p1CanContinue || !p2CanContinue) {
+        this.logger.log(`Game in session ${sessionId} to end due to insufficient funds for next round. P1 (${player1Info.username}) can continue: ${p1CanContinue}, P2 (${player2Info.username}) can continue: ${p2CanContinue}.`);
+        const endReason = !p1CanContinue && !p2CanContinue ? "Both players have insufficient coins for the next round."
+          : !p1CanContinue ? `${player1Info.username} has insufficient coins for the next round.`
+            : `${player2Info.username} has insufficient coins for the next round.`;
+
+        // Emit a specific event or use game_ended with a reason
+        this.server.to(player1SocketId).emit('game_ended_insufficient_funds', {
+          message: `Game over. ${endReason} You have ${p1Balance} coins.`,
+          canContinue: p1CanContinue
+        });
+        this.server.to(player2SocketId).emit('game_ended_insufficient_funds', {
+          message: `Game over. ${endReason} You have ${p2Balance} coins.`,
+          canContinue: p2CanContinue
+        });
+
+        // Clean up the session
+        const playerSocketIdsInSession = sessionData.players.map(p => p.socketId);
+        await this.cleanUpSession(sessionId, playerSocketIdsInSession);
+        // Note: handleEndGame also calls cleanUpSession. Ensure this doesn't cause issues.
+        // It might be better to have cleanUpSession be idempotent or guard against multiple calls.
+        // Here, we are ending the game directly, not via a player's 'end_game' message.
+      } else {
+        // Both can continue, optionally notify them they can start next round
+        this.server.to(player1SocketId).emit('next_round_ready', { message: 'Next round. Make your choice!' });
+        this.server.to(player2SocketId).emit('next_round_ready', { message: 'Next round. Make your choice!' });
+      }
+    } else { // Bot game, always ready for next round from player's perspective
+      this.server.to(player1SocketId).emit('next_round_ready', { message: 'Next round. Make your choice!' });
+    }
   }
 
   @SubscribeMessage('start')
@@ -226,10 +350,32 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const clientId = client.id;
     this.logger.log(`User ${data.username} id: ${data.userId} (Socket ID: ${clientId}) attempting to join matchmaking.`);
 
+    let userCanAffordFirstRound = true;
+    let userBalance = 0;
+
     try {
-      this.userService.create({ coins: 0, username: data.username, telegramUserId: data.userId })
-    } catch (e) {
-      this.logger.debug(e)
+      const user = await this.userService.create({ coins: 0, username: data.username, telegramUserId: data.userId })
+
+      userBalance = user.coins;
+      if (user.coins < ROUND_BET_AMOUNT) {
+        userCanAffordFirstRound = false;
+      }
+
+    } catch (error) {
+      this.logger.error(`Error during user check/create for ${data.username} (Socket ID: ${clientId}): ${error.message}`, error.stack);
+      // If user creation/fetching fails, they can't play.
+      client.emit('matchmaking_failed_system_error', { message: 'There was a problem preparing your game. Please try again later.' });
+      return;
+    }
+
+    if (!userCanAffordFirstRound) {
+      this.logger.log(`User ${data.username} (Socket ID: ${clientId}) has insufficient coins (${userBalance}) for the first round bet of ${ROUND_BET_AMOUNT}. Not adding to queue.`);
+      client.emit('matchmaking_failed_insufficient_coins', {
+        message: `You need ${ROUND_BET_AMOUNT} coins to start a match. Your current balance is ${userBalance}.`,
+        required: ROUND_BET_AMOUNT,
+        currentBalance: userBalance,
+      });
+      return;
     }
 
     const isAlreadyInQueue = this.matchmakingQueue.some(p => p.socketId === clientId);
@@ -436,6 +582,31 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         return;
       }
 
+      if (!sessionData.isBotGame) {
+        try {
+          const userMakingChoice = await this.userService.findOneByUsername(currentPlayerInfo.username);
+          if (userMakingChoice.coins < ROUND_BET_AMOUNT) {
+            this.logger.warn(`Player ${currentPlayerInfo.username} (Socket: ${currentPlayerId}) in session ${sessionId} has insufficient coins (${userMakingChoice.coins}) to make a choice (bet: ${ROUND_BET_AMOUNT}).`);
+            client.emit('insufficient_coins_for_round', {
+              message: `You need ${ROUND_BET_AMOUNT} coins to make a choice for this round. Your balance: ${userMakingChoice.coins}.`,
+              required: ROUND_BET_AMOUNT,
+              current: userMakingChoice.coins,
+            });
+            // Optionally, you could end the game here if a player can't continue
+            // Or emit an event to the opponent.
+            // For now, just prevent the choice.
+
+            this.handleEndGame({ sessionId: sessionId }, client)
+
+            return;
+          }
+        } catch (error) {
+          this.logger.error(`Error checking coins for ${currentPlayerInfo.username} in session ${sessionId}: ${error.message}`);
+          client.emit('error_occurred', { message: 'Server error checking your coin balance.' });
+          return;
+        }
+      }
+
       sessionData.choices[currentPlayerId] = choice;
       sessionData.lastActivity = Date.now();
       this.logger.log(`Player ${currentPlayerInfo.username} in session ${sessionId} chose: ${choice}`);
@@ -466,6 +637,48 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         const opponentChoice = sessionData.choices[opponentId];
         if (opponentChoice) {
           this.logger.log(`Both players in session ${sessionId} have made choices. Processing round.`);
+
+          try {
+            const opponentUser = await this.userService.findOneByUsername(opponentInfo.username);
+            if (opponentUser.coins < ROUND_BET_AMOUNT) {
+              this.logger.warn(`Opponent ${opponentInfo.username} in session ${sessionId} has insufficient coins for the bet. Current player ${currentPlayerInfo.username} wins by default (opponent financial forfeit).`);
+              // Current player wins, opponent loses due to no funds.
+              // Handle this as a special case in processRoundCompletion or here.
+              // For simplicity, let's make processRoundCompletion handle coin transfers based on who is determined winner/loser.
+              // The key is that the game *can* proceed to round completion.
+              // We just need to ensure processRoundCompletion is aware of this potential state.
+              // Let's assume processRoundCompletion will attempt deductions and they might fail if coins are insufficient
+              // by the time it runs, which it should handle gracefully.
+              // OR, we award win to currentPlayer now.
+
+              // Award win to currentPlayer because opponent cannot cover bet
+              this.server.to(currentPlayerId).emit('opponent_forfeit_coins', {
+                message: `${opponentInfo.username} cannot cover the bet of ${ROUND_BET_AMOUNT} coins and forfeits the round. You win!`,
+              });
+              this.server.to(opponentId).emit('forfeit_coins', {
+                message: `You do not have enough coins (${ROUND_BET_AMOUNT}) to cover the bet and forfeit the round.`,
+              });
+
+              // Update scores: currentPlayer wins, opponent loses
+              sessionData.scores[currentPlayerId]++;
+              // No coin transfer here, just score. Coins are handled after round result.
+              // OR, if we treat this as an immediate win, we could process a simplified round completion
+              await this.processRoundCompletion(
+                sessionData, sessionId,
+                currentPlayerId, choice, // Current player made a choice
+                opponentId, null,       // Opponent effectively made no choice / forfeited
+                `${opponentInfo.username} forfeited due to insufficient coins.`,
+                `You forfeited due to insufficient coins.`,
+                false // isBotRound
+              );
+              return; // Round processed due to forfeit
+            }
+          } catch (error) {
+            this.logger.error(`Error checking opponent ${opponentInfo.username}'s coins in session ${sessionId}: ${error.message}`);
+            // If error, how to proceed? Maybe let the round process and coin deduction fail gracefully.
+            // Or halt. For now, let it proceed.
+          }
+
           await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, opponentChoice);
         } else {
           client.emit('choice_registered', { message: 'Choice registered. Waiting for opponent.' });
@@ -573,11 +786,11 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
       sessionData.players.forEach(p => {
         const scores = sessionData.scores
-        const userScore = scores[p.socketId]
+        const userScore = scores[p.socketId] || 0 
 
         const players = sessionData.players
 
-        this.userService.addCoins(p.username, userScore * 2)
+        // this.userService.addCoins(p.username, userScore * 2)
 
         this.userService.addMatch(p.username, {
           players: players.map(player => player.username),
