@@ -455,7 +455,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   private getRandomBotName(): string {
-    if (this.BOT_USERNAMES.length === 0) return 'RPS Bot'; // Fallback
+    if (this.BOT_USERNAMES.length === 0) return 'RPS Titans Bot'; // Fallback
     const randomIndex = Math.floor(Math.random() * this.BOT_USERNAMES.length);
     return this.BOT_USERNAMES[randomIndex];
   }

@@ -53,7 +53,7 @@ export class BotService implements OnModuleInit {
     // The constructor and OnModuleInit lifecycle ensure this.
     this.bot = new TelegramBot(this.botToken!, { polling: true });
 
-    this.bot.onText(/\/playgame/, (msg) => {
+    this.bot.onText(/\/play/, (msg) => {
       const chatId = msg.chat.id;
       this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);
       this.bot.sendGame(chatId, this.gameShortName!)
@@ -80,10 +80,10 @@ You win -> take your cash 🚀`;
           inline_keyboard: [
             // Each array within inline_keyboard represents a row of buttons
             [
-              { text: 'Join Channel', url: 'https://t.me/rps_titans' } // Replace with actual URL
+              { text: '👋 Join Channel', url: 'https://t.me/rps_titans' } // Replace with actual URL
             ],
             [
-              { text: 'Referral', url: 'https://example.com/hamsterboost' } // TODO: on here user receive a referral link from us to share 
+              { text: '🎁 Referral', url: 'https://example.com/hamsterboost' } // TODO: on here user receive a referral link from us to share 
             ],
             [
               { text: '💵 Earn More!', url: 'https://t.me/your_channel_username' } // TODO: this button would tell him the how to become group admin and earn revenue-share 
@@ -125,7 +125,7 @@ You win -> take your cash 🚀`;
         coins: 0,
         username: username,
         telegramUserId: userId,
-      }
+      } 
 
       if (referralCode) {
 
