@@ -322,11 +322,13 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         // Emit a specific event or use game_ended with a reason
         this.server.to(player1SocketId).emit('game_ended_insufficient_funds', {
           message: `Game over. ${endReason} You have ${p1Balance} coins.`,
-          canContinue: p1CanContinue
+          canContinue: p1CanContinue,
+          session: sessionData
         });
         this.server.to(player2SocketId).emit('game_ended_insufficient_funds', {
           message: `Game over. ${endReason} You have ${p2Balance} coins.`,
-          canContinue: p2CanContinue
+          canContinue: p2CanContinue,
+          session: sessionData
         });
 
         // Clean up the session
