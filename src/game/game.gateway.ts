@@ -14,10 +14,14 @@ import { Player } from 'src/types/player';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from 'src/users/users.service';
+import { AdminService } from 'src/admin/admin.service';
 
 type Choice = 'rock' | 'paper' | 'scissors';
 
 const ROUND_BET_AMOUNT = 10;
+const PLAYER_FEE = 1; // Each player pays $1
+const TOTAL_FEE_PER_ROUND = PLAYER_FEE * 2; // Admin collects $2
+const WINNER_AMOUNT_AFTER_FEES = ROUND_BET_AMOUNT - TOTAL_FEE_PER_ROUND; // Winner gets $8
 
 interface Score {
   [playerId: string]: number;
@@ -60,7 +64,8 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   constructor(
     private readonly redisService: RedisService,
     private configService: ConfigService,
-    private userService: UsersService
+    private userService: UsersService,
+    private adminService: AdminService, // <-- Add this
   ) {
     const configuredTurnTimeout = this.configService.get<string>('TURN_TIMEOUT_DURATION_MS');
     if (!configuredTurnTimeout) {
@@ -201,67 +206,124 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       }
     }
 
-    if (!isBotRound && winnerSocketId && loserSocketId) {
-      const winnerInfo = sessionData.players.find(p => p.socketId === winnerSocketId);
-      const loserInfo = sessionData.players.find(p => p.socketId === loserSocketId);
+    // Inside processRoundCompletion, after winner/loser are determined
+       if (!isBotRound && winnerSocketId && loserSocketId) {
+           const winnerInfo = sessionData.players.find(p => p.socketId === winnerSocketId);
+           const loserInfo = sessionData.players.find(p => p.socketId === loserSocketId);
 
-      if (winnerInfo && loserInfo) {
-        try {
-          // Attempt to remove coins from loser
-          // The removeCoins method in UsersService should handle insufficient funds gracefully
-          // by throwing an error, but here we expect it to succeed if prior checks passed.
-          // However, there's a tiny race condition window.
-          await this.userService.removeCoins(loserInfo.username, ROUND_BET_AMOUNT);
-          this.logger.log(`Deducted ${ROUND_BET_AMOUNT} coins from loser ${loserInfo.username} in session ${sessionId}.`);
+           if (winnerInfo && loserInfo) {
+               try {
+                   // Loser pays the full bet amount
+                   await this.userService.removeCoins(loserInfo.username, ROUND_BET_AMOUNT);
+                   this.logger.log(`Deducted ${ROUND_BET_AMOUNT} coins from loser ${loserInfo.username} in session ${sessionId}.`);
 
-          try {
-            // Add coins to winner
-            await this.userService.addCoins(winnerInfo.username, ROUND_BET_AMOUNT);
-            this.logger.log(`Added ${ROUND_BET_AMOUNT} coins to winner ${winnerInfo.username} in session ${sessionId}.`);
-          } catch (addError) {
-            this.logger.error(`CRITICAL: Failed to add coins to winner ${winnerInfo.username} after deducting from loser ${loserInfo.username}. Session: ${sessionId}. Error: ${addError.message}. Coins might be lost from system.`);
-            // This is a critical state. Consider how to handle (e.g., refund loser, flag for admin).
-            // For now, logging is the minimum.
-          }
-        } catch (removeError) {
-          this.logger.warn(`Failed to remove coins from loser ${loserInfo.username} in session ${sessionId} (Potentially insufficient funds despite prior checks, or other error): ${removeError.message}`);
-          // If loser couldn't pay, winner doesn't get coins from this bet.
-          // This scenario should ideally be caught *before* processRoundCompletion by checks in handleMakeChoice.
-          // If it happens here, it implies a race condition or a state not caught earlier.
-          // Update messages to reflect no coins exchanged if deduction failed.
-          if (winnerSocketId === player1SocketId) {
-            player1ResultMsg += ` (Opponent couldn't cover bet)`;
-            player2ResultMsg += ` (Bet voided)`;
-          } else {
-            player2ResultMsg += ` (Opponent couldn't cover bet)`;
-            player1ResultMsg += ` (Bet voided)`;
-          }
-        }
-      }
-      else if (isBotRound && winnerSocketId && loserSocketId) {
-        // Handle bot game "winnings/losses" if any (e.g. fixed reward for player winning)
-        // Example: If player wins against bot, give player HALF the bet amount as a bonus
-        if (winnerInfo && winnerInfo.socketId === player1SocketId && !winnerInfo.socketId.startsWith(this.BOT_ID_PREFIX)) { // Player won
-          try {
-            // await this.userService.addCoins(winnerInfo.username, ROUND_BET_AMOUNT / 2);
-            // this.logger.log(`Player ${winnerInfo.username} won against bot, awarded ${ROUND_BET_AMOUNT / 2} coins.`);
-            // player1ResultMsg += ` (+${ROUND_BET_AMOUNT / 2} coins bonus!)`;
-            // For now, let's assume no coin transactions for bot games to keep it simple.
-          } catch (e) {
-            this.logger.error(`Failed to award bot game bonus to ${winnerInfo.username}: ${e.message}`);
-          }
-        } else if (loserInfo && loserInfo.socketId === player1SocketId && !loserInfo.socketId.startsWith(this.BOT_ID_PREFIX)) { // Player lost
-          // Deduct from player if they lose to a bot?
-          // try {
-          //     await this.userService.removeCoins(loserInfo.username, ROUND_BET_AMOUNT / 2);
-          //     this.logger.log(`Player ${loserInfo.username} lost against bot, deducted ${ROUND_BET_AMOUNT / 2} coins.`);
-          //      player1ResultMsg += ` (-${ROUND_BET_AMOUNT / 2} coins)`;
-          // } catch (e) {
-          //      this.logger.warn(`Failed to deduct coins from ${loserInfo.username} after bot game loss: ${e.message}`);
-          // }
-        }
-      }
-    }
+                   try {
+                       // Winner receives the bet amount minus total fees
+                       await this.userService.addCoins(winnerInfo.username, WINNER_AMOUNT_AFTER_FEES);
+                       this.logger.log(`Added ${WINNER_AMOUNT_AFTER_FEES} coins to winner ${winnerInfo.username} in session ${sessionId}.`);
+
+                       // Admin collects the total fee
+                       await this.adminService.updateAdminCoins(TOTAL_FEE_PER_ROUND);
+                       this.logger.log(`Added ${TOTAL_FEE_PER_ROUND} coins to admin for session ${sessionId}.`);
+
+                       // Update result messages to reflect actual winnings
+                       if (winnerSocketId === player1SocketId) {
+                           player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`; // Player 1 won
+                           player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;    // Player 2 lost
+                       } else {
+                           player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`; // Player 2 won
+                           player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;    // Player 1 lost
+                       }
+
+                   } catch (addOrAdminError) {
+                       this.logger.error(`CRITICAL: Error during coin distribution or admin fee update for session ${sessionId}. Winner: ${winnerInfo.username}, Loser: ${loserInfo.username}. Error: ${addOrAdminError.message}. Attempting to refund loser if possible.`);
+                       // Attempt to refund the loser if winner/admin update failed
+                       try {
+                           await this.userService.addCoins(loserInfo.username, ROUND_BET_AMOUNT);
+                           this.logger.log(`REFUND: Successfully refunded ${ROUND_BET_AMOUNT} coins to loser ${loserInfo.username} due to error in winner/admin transaction.`);
+                       } catch (refundError) {
+                           this.logger.error(`CRITICAL REFUND FAILURE: Failed to refund ${loserInfo.username} after an error. Coins might be lost from loser. Error: ${refundError.message}`);
+                       }
+                       // Update messages to reflect the failure
+                       player1ResultMsg = 'Round processing error. Bet may be voided.';
+                       player2ResultMsg = 'Round processing error. Bet may be voided.';
+                   }
+               } catch (removeError) {
+                   this.logger.warn(`Failed to remove coins from loser ${loserInfo.username} in session ${sessionId} (Potentially insufficient funds or other error): ${removeError.message}`);
+                   // If loser couldn't pay, winner doesn't get coins, admin doesn't get fee from this transaction.
+                   if (winnerSocketId === player1SocketId) {
+                       player1ResultMsg += ` (Opponent couldn't cover bet - no winnings transferred)`;
+                       player2ResultMsg += ` (Bet voided - you did not have enough coins)`;
+                   } else {
+                       player2ResultMsg += ` (Opponent couldn't cover bet - no winnings transferred)`;
+                       player1ResultMsg += ` (Bet voided - you did not have enough coins)`;
+                   }
+               }
+           }
+           // Bot game logic remains unchanged (currently no coin transactions for bots)
+       } else if (isBotRound && winnerSocketId && loserSocketId) {
+           // Current bot game logic: no coin transactions, so no fees.
+           // If bot games were to have "stakes" for the player, fees might apply differently.
+           // For now, this section remains as is.
+           this.logger.log(`Bot game round completed for session ${sessionId}. No fee processing for bot games.`);
+           // Result messages for bot games are set before this block based on win/loss/tie only.
+       } else if (!winnerSocketId || !loserSocketId) { // Handles cases like timeout where one player wins by default
+            // This section handles win by default (e.g. opponent timeout)
+            // Player who won by default should still effectively "win" the bet amount from the system perspective,
+            // and the fee structure should apply if it was a non-bot game.
+            // However, the current logic has one of the choices as null.
+            // Let's refine this. The player who didn't time out is the winner.
+            // The player who timed out is the loser.
+
+            const winningPlayer = winnerSocketId ? sessionData.players.find(p => p.socketId === winnerSocketId) : sessionData.players.find(p => p.socketId === player2SocketId); // If player1Choice was null, player2 is winner
+            const losingPlayer = loserSocketId ? sessionData.players.find(p => p.socketId === loserSocketId) : sessionData.players.find(p => p.socketId === player1SocketId); // If player1Choice was null, player1 is loser
+
+            if (!isBotRound && winningPlayer && losingPlayer) {
+                this.logger.log(`Processing round completion with a default winner due to timeout/no choice. Winner: ${winningPlayer.username}, Loser: ${losingPlayer.username}`);
+                try {
+                    // Loser pays the full bet amount
+                    await this.userService.removeCoins(losingPlayer.username, ROUND_BET_AMOUNT);
+                    this.logger.log(`Deducted ${ROUND_BET_AMOUNT} coins from defaulting loser ${losingPlayer.username}.`);
+
+                    try {
+                        // Winner receives the bet amount minus total fees
+                        await this.userService.addCoins(winningPlayer.username, WINNER_AMOUNT_AFTER_FEES);
+                        this.logger.log(`Added ${WINNER_AMOUNT_AFTER_FEES} coins to default winner ${winningPlayer.username}.`);
+
+                        // Admin collects the total fee
+                        await this.adminService.updateAdminCoins(TOTAL_FEE_PER_ROUND);
+                        this.logger.log(`Added ${TOTAL_FEE_PER_ROUND} coins to admin for default win scenario.`);
+
+                        // Update result messages
+                        if (winnerSocketId === player1SocketId || (player1Choice && !player2Choice)) { // Player 1 is the winner
+                            player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer1 ? reasonPlayer1.toLowerCase() : (reasonPlayer2 ? reasonPlayer2.toLowerCase() : 'defaulted')})`;
+                            player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer2 ? reasonPlayer2.toLowerCase() : (reasonPlayer1 ? reasonPlayer1.toLowerCase() : 'You defaulted')})`;
+                        } else { // Player 2 is the winner
+                            player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer2 ? reasonPlayer2.toLowerCase() : (reasonPlayer1 ? reasonPlayer1.toLowerCase() : 'defaulted')})`;
+                            player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer1 ? reasonPlayer1.toLowerCase() : (reasonPlayer2 ? reasonPlayer2.toLowerCase() : 'You defaulted')})`;
+                        }
+
+                    } catch (addOrAdminError) {
+                        this.logger.error(`CRITICAL: Error during coin distribution for default win. Session ${sessionId}. Winner: ${winningPlayer.username}, Loser: ${losingPlayer.username}. Error: ${addOrAdminError.message}. Attempting to refund loser.`);
+                        await this.userService.addCoins(losingPlayer.username, ROUND_BET_AMOUNT).catch(e => this.logger.error(`CRITICAL REFUND FAILURE for ${losingPlayer.username}: ${e.message}`));
+                        player1ResultMsg = 'Round processing error (default win). Bet may be voided.';
+                        player2ResultMsg = 'Round processing error (default win). Bet may be voided.';
+                    }
+                } catch (removeError) {
+                     this.logger.warn(`Failed to remove coins from defaulting loser ${losingPlayer.username}: ${removeError.message}`);
+                     if (winnerSocketId === player1SocketId || (player1Choice && !player2Choice)) {
+                         player1ResultMsg = `You won! (Opponent defaulted but couldn't cover bet)`;
+                         player2ResultMsg = `You lost. (You defaulted and couldn't cover bet)`; // Or just "You lost"
+                     } else {
+                         player2ResultMsg = `You won! (Opponent defaulted but couldn't cover bet)`;
+                         player1ResultMsg = `You lost. (You defaulted and couldn't cover bet)`;
+                     }
+                }
+            } else if (isBotRound) {
+                 this.logger.log(`Bot game round completed with a default winner/loser for session ${sessionId}. No fee processing.`);
+            }
+       }
+    // The rest of processRoundCompletion (emitting results, resetting choices) remains largely the same.
 
     this.server.to(player1SocketId).emit('round_result', {
       yourChoice: player1Choice,
