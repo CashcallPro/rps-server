@@ -160,8 +160,10 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     let player1ResultMsg: string;
     let player2ResultMsg: string;
+    // Initialize winner/loser
     let winnerSocketId: string | null = null;
     let loserSocketId: string | null = null;
+    let isActualTie = false; // Flag for actual ties, not just default messages
 
     if (!sessionData.scores) {
       this.logger.warn(`Scores object missing in sessionData for session ${sessionId}. Initializing.`);
@@ -173,156 +175,102 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     if (sessionData.scores[player1SocketId] === undefined) sessionData.scores[player1SocketId] = 0;
     if (sessionData.scores[player2SocketId] === undefined) sessionData.scores[player2SocketId] = 0;
 
-    if (!player1Choice) {
-      player1ResultMsg = 'You lost!';
-      player2ResultMsg = 'You won!';
-      sessionData.scores[player2SocketId]++;
-      winnerSocketId = player2SocketId;
-      loserSocketId = player1SocketId;
-    } else if (!player2Choice) {
-      player1ResultMsg = 'You won!';
-      player2ResultMsg = 'You lost!';
-      sessionData.scores[player1SocketId]++;
-      winnerSocketId = player1SocketId;
-      loserSocketId = player2SocketId;
-    } else {
-      const outcomeForPlayer1 = this.determineOutcome(player1Choice, player2Choice);
-      if (outcomeForPlayer1 === 'win') {
-        player1ResultMsg = 'You won!';
-        player2ResultMsg = 'You lost!';
-        sessionData.scores[player1SocketId]++;
-        winnerSocketId = player1SocketId;
-        loserSocketId = player2SocketId;
-      } else if (outcomeForPlayer1 === 'loss') {
-        player1ResultMsg = 'You lost!';
-        player2ResultMsg = 'You won!';
-        sessionData.scores[player2SocketId]++;
+    if (!player1Choice) { // Player 2 wins by P1 timeout/no choice
         winnerSocketId = player2SocketId;
         loserSocketId = player1SocketId;
-      } else { // Tie
-        player1ResultMsg = "It's a tie!";
-        player2ResultMsg = "It's a tie!";
-        // No winner or loser in a tie for coin transfer
-      }
+        player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer1 || 'You defaulted'})`; // Default message
+        player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer2 || 'defaulted'})`; // Default message
+        sessionData.scores[player2SocketId]++;
+    } else if (!player2Choice) { // Player 1 wins by P2 timeout/no choice
+        winnerSocketId = player1SocketId;
+        loserSocketId = player2SocketId;
+        player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer1 || 'defaulted'})`; // Default message
+        player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer2 || 'You defaulted'})`; // Default message
+        sessionData.scores[player1SocketId]++;
+    } else { // Both players made choices
+        const outcomeForPlayer1 = this.determineOutcome(player1Choice, player2Choice);
+        if (outcomeForPlayer1 === 'win') {
+            winnerSocketId = player1SocketId;
+            loserSocketId = player2SocketId;
+            player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`;
+            player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;
+            sessionData.scores[player1SocketId]++;
+        } else if (outcomeForPlayer1 === 'loss') {
+            winnerSocketId = player2SocketId;
+            loserSocketId = player1SocketId;
+            player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;
+            player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`;
+            sessionData.scores[player2SocketId]++;
+        } else { // Actual Tie
+            isActualTie = true;
+            player1ResultMsg = "It's a tie! No coins have been changed.";
+            player2ResultMsg = "It's a tie! No coins have been changed.";
+            // No score change in a tie, no winner/loser for coin purposes
+        }
     }
 
-    // Inside processRoundCompletion, after winner/loser are determined
-       if (!isBotRound && winnerSocketId && loserSocketId) {
-           const winnerInfo = sessionData.players.find(p => p.socketId === winnerSocketId);
-           const loserInfo = sessionData.players.find(p => p.socketId === loserSocketId);
+    // Perform coin transactions and fee collection only if NOT a bot game AND NOT an actual tie AND there's a winner/loser
+    if (!isBotRound && !isActualTie && winnerSocketId && loserSocketId) {
+        const winnerInfo = sessionData.players.find(p => p.socketId === winnerSocketId);
+        const loserInfo = sessionData.players.find(p => p.socketId === loserSocketId);
 
-           if (winnerInfo && loserInfo) {
-               try {
-                   // Loser pays the full bet amount
-                   await this.userService.removeCoins(loserInfo.username, ROUND_BET_AMOUNT);
-                   this.logger.log(`Deducted ${ROUND_BET_AMOUNT} coins from loser ${loserInfo.username} in session ${sessionId}.`);
+        if (winnerInfo && loserInfo) {
+            try {
+                await this.userService.removeCoins(loserInfo.username, ROUND_BET_AMOUNT);
+                this.logger.log(`Deducted ${ROUND_BET_AMOUNT} coins from loser ${loserInfo.username} in session ${sessionId}.`);
 
-                   try {
-                       // Winner receives the bet amount minus total fees
-                       await this.userService.addCoins(winnerInfo.username, WINNER_AMOUNT_AFTER_FEES);
-                       this.logger.log(`Added ${WINNER_AMOUNT_AFTER_FEES} coins to winner ${winnerInfo.username} in session ${sessionId}.`);
-
-                       // Admin collects the total fee
-                       await this.adminService.updateAdminCoins(TOTAL_FEE_PER_ROUND);
-                       this.logger.log(`Added ${TOTAL_FEE_PER_ROUND} coins to admin for session ${sessionId}.`);
-
-                       // Update result messages to reflect actual winnings
-                       if (winnerSocketId === player1SocketId) {
-                           player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`; // Player 1 won
-                           player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;    // Player 2 lost
-                       } else {
-                           player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`; // Player 2 won
-                           player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;    // Player 1 lost
-                       }
-
-                   } catch (addOrAdminError) {
-                       this.logger.error(`CRITICAL: Error during coin distribution or admin fee update for session ${sessionId}. Winner: ${winnerInfo.username}, Loser: ${loserInfo.username}. Error: ${addOrAdminError.message}. Attempting to refund loser if possible.`);
-                       // Attempt to refund the loser if winner/admin update failed
-                       try {
-                           await this.userService.addCoins(loserInfo.username, ROUND_BET_AMOUNT);
-                           this.logger.log(`REFUND: Successfully refunded ${ROUND_BET_AMOUNT} coins to loser ${loserInfo.username} due to error in winner/admin transaction.`);
-                       } catch (refundError) {
-                           this.logger.error(`CRITICAL REFUND FAILURE: Failed to refund ${loserInfo.username} after an error. Coins might be lost from loser. Error: ${refundError.message}`);
-                       }
-                       // Update messages to reflect the failure
-                       player1ResultMsg = 'Round processing error. Bet may be voided.';
-                       player2ResultMsg = 'Round processing error. Bet may be voided.';
-                   }
-               } catch (removeError) {
-                   this.logger.warn(`Failed to remove coins from loser ${loserInfo.username} in session ${sessionId} (Potentially insufficient funds or other error): ${removeError.message}`);
-                   // If loser couldn't pay, winner doesn't get coins, admin doesn't get fee from this transaction.
-                   if (winnerSocketId === player1SocketId) {
-                       player1ResultMsg += ` (Opponent couldn't cover bet - no winnings transferred)`;
-                       player2ResultMsg += ` (Bet voided - you did not have enough coins)`;
-                   } else {
-                       player2ResultMsg += ` (Opponent couldn't cover bet - no winnings transferred)`;
-                       player1ResultMsg += ` (Bet voided - you did not have enough coins)`;
-                   }
-               }
-           }
-           // Bot game logic remains unchanged (currently no coin transactions for bots)
-       } else if (isBotRound && winnerSocketId && loserSocketId) {
-           // Current bot game logic: no coin transactions, so no fees.
-           // If bot games were to have "stakes" for the player, fees might apply differently.
-           // For now, this section remains as is.
-           this.logger.log(`Bot game round completed for session ${sessionId}. No fee processing for bot games.`);
-           // Result messages for bot games are set before this block based on win/loss/tie only.
-       } else if (!winnerSocketId || !loserSocketId) { // Handles cases like timeout where one player wins by default
-            // This section handles win by default (e.g. opponent timeout)
-            // Player who won by default should still effectively "win" the bet amount from the system perspective,
-            // and the fee structure should apply if it was a non-bot game.
-            // However, the current logic has one of the choices as null.
-            // Let's refine this. The player who didn't time out is the winner.
-            // The player who timed out is the loser.
-
-            const winningPlayer = winnerSocketId ? sessionData.players.find(p => p.socketId === winnerSocketId) : sessionData.players.find(p => p.socketId === player2SocketId); // If player1Choice was null, player2 is winner
-            const losingPlayer = loserSocketId ? sessionData.players.find(p => p.socketId === loserSocketId) : sessionData.players.find(p => p.socketId === player1SocketId); // If player1Choice was null, player1 is loser
-
-            if (!isBotRound && winningPlayer && losingPlayer) {
-                this.logger.log(`Processing round completion with a default winner due to timeout/no choice. Winner: ${winningPlayer.username}, Loser: ${losingPlayer.username}`);
                 try {
-                    // Loser pays the full bet amount
-                    await this.userService.removeCoins(losingPlayer.username, ROUND_BET_AMOUNT);
-                    this.logger.log(`Deducted ${ROUND_BET_AMOUNT} coins from defaulting loser ${losingPlayer.username}.`);
+                    await this.userService.addCoins(winnerInfo.username, WINNER_AMOUNT_AFTER_FEES);
+                    this.logger.log(`Added ${WINNER_AMOUNT_AFTER_FEES} coins to winner ${winnerInfo.username} in session ${sessionId}.`);
 
+                    await this.adminService.updateAdminCoins(TOTAL_FEE_PER_ROUND);
+                    this.logger.log(`Added ${TOTAL_FEE_PER_ROUND} coins to admin for session ${sessionId}.`);
+
+                    // Player messages for win/loss are already set above,
+                    // but we might need to re-affirm them here if they were default messages
+                    // and now we are confirming the amounts after successful transactions.
+                    // This part might need slight adjustment if default messages were too generic.
+                    // For now, assuming the messages set when winner/loserSocketId are determined are sufficient.
+                    // Re-setting messages explicitly here if they were default, to confirm amounts.
+                    if (player1Choice && !player2Choice) { // P1 won by P2 default
+                        player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer1 || 'defaulted'})`;
+                        player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer2 || 'You defaulted'})`;
+                    } else if (!player1Choice && player2Choice) { // P2 won by P1 default
+                        player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer1 || 'You defaulted'})`;
+                        player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer2 || 'defaulted'})`;
+                    } // If both chose, messages are already accurate.
+
+
+                } catch (addOrAdminError) {
+                    this.logger.error(`CRITICAL: Error during coin distribution or admin fee update for session ${sessionId}. Winner: ${winnerInfo.username}, Loser: ${loserInfo.username}. Error: ${addOrAdminError.message}. Attempting to refund loser if possible.`);
                     try {
-                        // Winner receives the bet amount minus total fees
-                        await this.userService.addCoins(winningPlayer.username, WINNER_AMOUNT_AFTER_FEES);
-                        this.logger.log(`Added ${WINNER_AMOUNT_AFTER_FEES} coins to default winner ${winningPlayer.username}.`);
-
-                        // Admin collects the total fee
-                        await this.adminService.updateAdminCoins(TOTAL_FEE_PER_ROUND);
-                        this.logger.log(`Added ${TOTAL_FEE_PER_ROUND} coins to admin for default win scenario.`);
-
-                        // Update result messages
-                        if (winnerSocketId === player1SocketId || (player1Choice && !player2Choice)) { // Player 1 is the winner
-                            player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer1 ? reasonPlayer1.toLowerCase() : (reasonPlayer2 ? reasonPlayer2.toLowerCase() : 'defaulted')})`;
-                            player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer2 ? reasonPlayer2.toLowerCase() : (reasonPlayer1 ? reasonPlayer1.toLowerCase() : 'You defaulted')})`;
-                        } else { // Player 2 is the winner
-                            player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer2 ? reasonPlayer2.toLowerCase() : (reasonPlayer1 ? reasonPlayer1.toLowerCase() : 'defaulted')})`;
-                            player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer1 ? reasonPlayer1.toLowerCase() : (reasonPlayer2 ? reasonPlayer2.toLowerCase() : 'You defaulted')})`;
-                        }
-
-                    } catch (addOrAdminError) {
-                        this.logger.error(`CRITICAL: Error during coin distribution for default win. Session ${sessionId}. Winner: ${winningPlayer.username}, Loser: ${losingPlayer.username}. Error: ${addOrAdminError.message}. Attempting to refund loser.`);
-                        await this.userService.addCoins(losingPlayer.username, ROUND_BET_AMOUNT).catch(e => this.logger.error(`CRITICAL REFUND FAILURE for ${losingPlayer.username}: ${e.message}`));
-                        player1ResultMsg = 'Round processing error (default win). Bet may be voided.';
-                        player2ResultMsg = 'Round processing error (default win). Bet may be voided.';
+                        await this.userService.addCoins(loserInfo.username, ROUND_BET_AMOUNT);
+                        this.logger.log(`REFUND: Successfully refunded ${ROUND_BET_AMOUNT} coins to loser ${loserInfo.username} due to error in winner/admin transaction.`);
+                    } catch (refundError) {
+                        this.logger.error(`CRITICAL REFUND FAILURE: Failed to refund ${loserInfo.username} after an error. Coins might be lost from loser. Error: ${refundError.message}`);
                     }
-                } catch (removeError) {
-                     this.logger.warn(`Failed to remove coins from defaulting loser ${losingPlayer.username}: ${removeError.message}`);
-                     if (winnerSocketId === player1SocketId || (player1Choice && !player2Choice)) {
-                         player1ResultMsg = `You won! (Opponent defaulted but couldn't cover bet)`;
-                         player2ResultMsg = `You lost. (You defaulted and couldn't cover bet)`; // Or just "You lost"
-                     } else {
-                         player2ResultMsg = `You won! (Opponent defaulted but couldn't cover bet)`;
-                         player1ResultMsg = `You lost. (You defaulted and couldn't cover bet)`;
-                     }
+                    // Reset messages to reflect error
+                    player1ResultMsg = 'Round processing error. Bet may be voided.';
+                    player2ResultMsg = 'Round processing error. Bet may be voided.';
                 }
-            } else if (isBotRound) {
-                 this.logger.log(`Bot game round completed with a default winner/loser for session ${sessionId}. No fee processing.`);
+            } catch (removeError) {
+                this.logger.warn(`Failed to remove coins from loser ${loserInfo.username} in session ${sessionId} (Potentially insufficient funds or other error): ${removeError.message}`);
+                // Update messages to reflect no coins exchanged if deduction failed.
+                // Use original player1ResultMsg and player2ResultMsg and append, rather than replacing specific amounts.
+                if (winnerSocketId === player1SocketId) {
+                    player1ResultMsg = (player1ResultMsg.includes('won') ? player1ResultMsg.split('!')[0] : 'You won') + `! (Opponent couldn't cover bet - no winnings transferred)`;
+                    player2ResultMsg = (player2ResultMsg.includes('lost') ? player2ResultMsg.split('.')[0] : 'You lost') + `. (Bet voided - you did not have enough coins)`;
+                } else {
+                    player2ResultMsg = (player2ResultMsg.includes('won') ? player2ResultMsg.split('!')[0] : 'You won') + `! (Opponent couldn't cover bet - no winnings transferred)`;
+                    player1ResultMsg = (player1ResultMsg.includes('lost') ? player1ResultMsg.split('.')[0] : 'You lost') + `. (Bet voided - you did not have enough coins)`;
+                }
             }
-       }
+        }
+    } else if (isActualTie) {
+        this.logger.log(`Round was a tie for session ${sessionId}. No coin transactions or fees applied.`);
+    } else if (isBotRound) {
+        this.logger.log(`Bot game round completed for session ${sessionId}. No fee processing.`);
+    }
     // The rest of processRoundCompletion (emitting results, resetting choices) remains largely the same.
 
     this.server.to(player1SocketId).emit('round_result', {
