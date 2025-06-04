@@ -6,6 +6,7 @@ import { UsersModule } from 'src/users/users.module';
 @Module({
   controllers: [BotController],
   providers: [BotService],
-  imports: [UsersModule]
+  imports: [UsersModule],
+  exports: [BotService]
 })
 export class BotModule {}
