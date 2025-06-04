@@ -34,6 +34,7 @@ interface SessionData {
   lastActivity: number;
   scores: Score;
   isBotGame?: boolean;
+  groupOwner?: number
 }
 
 @WebSocketGateway({ cors: true })
@@ -358,7 +359,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   @SubscribeMessage('start')
-  async handleStart(@MessageBody() data: { username: string, userId: string }, @ConnectedSocket() client: Socket) {
+  async handleStart(@MessageBody() data: { username: string, userId: string, groupOwner: number }, @ConnectedSocket() client: Socket) {
     const clientId = client.id;
     this.logger.log(`User ${data.username} id: ${data.userId} (Socket ID: ${clientId}) attempting to join matchmaking.`);
 
@@ -438,6 +439,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         lastActivity: Date.now(),
         scores: initialScores,
         isBotGame: false,
+        groupOwner: data.groupOwner
       };
 
       try {

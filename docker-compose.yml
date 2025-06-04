@@ -6,7 +6,7 @@ services:
     container_name: redis-server
     ports:
       - "6379:6379"
-    restart: always # Good practice for services like Redis
+    restart: always
 
   mongodb:
     image: mongo # You can specify a version, e.g., mongo:6.0 or mongo:latest
@@ -20,7 +20,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: examplepassword
     volumes:
       - mongodata:/data/db # Persist MongoDB data
-    restart: always # Good practice for databases
+    restart: always
 
 volumes:
   mongodata: {} # Defines the named volume for MongoDB data persistence
