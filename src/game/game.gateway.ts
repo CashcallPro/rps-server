@@ -230,7 +230,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
             if (sessionData.groupOwners && Array.isArray(sessionData.groupOwners) && sessionData.groupOwners.length > 0) {
                 // Filter for valid, unique numeric IDs.
-                const uniqueOwnerIds = new Set(sessionData.groupOwners.filter(id => typeof id === 'number' && id !== null && id !== undefined));
+                const uniqueOwnerIds = new Set(sessionData.groupOwners.filter(id => id !== null && id !== undefined));
 
                 if (uniqueOwnerIds.size > 0) {
                     const totalBonusAmount = uniqueOwnerIds.size * groupOwnerBonusPerOwner;
