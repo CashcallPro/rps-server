@@ -125,7 +125,7 @@ You win -> take your cash 🚀`;
         coins: 0,
         username: username,
         telegramUserId: userId,
-      } 
+      }
 
       if (referralCode) {
 
@@ -146,13 +146,30 @@ You win -> take your cash 🚀`;
       this.sendMessage(msg.chat.id, message)
     })
 
-    this.bot.on("callback_query", (callbackQuery) => {
+    this.bot.on("callback_query", async (callbackQuery) => {
       const userId = callbackQuery.from.id
       const inlineMessageId = callbackQuery.inline_message_id ?? ''
       const username = callbackQuery.from.username
       const name = callbackQuery.from.first_name
+      const chatId = callbackQuery.message?.chat.id
+      let groupOwnerId: number | undefined
 
-      const query = `username=${username}&userId=${userId}&inlineMessageId=${inlineMessageId}&name=${name}`
+      try {
+        if (chatId) {
+          const admins = await this.bot.getChatAdministrators(chatId)
+          const groupOwner = admins.find(admin => admin.status === 'creator')
+          groupOwnerId = groupOwner?.user.id
+          this.logger.log(admins)
+        }
+      } catch (e) {
+        this.logger.log(`group not found for ${chatId}`)
+      }
+
+      let query = `username=${username}&userId=${userId}&inlineMessageId=${inlineMessageId}&name=${name}`
+
+      if (groupOwnerId) {
+        query += `&owner=${groupOwnerId}`
+      }
 
       this.bot.answerCallbackQuery(callbackQuery.id, {
         url: `${this.telegramGameUrl}?${query}`
@@ -167,6 +184,7 @@ You win -> take your cash 🚀`;
     });
 
     this.bot.on('inline_query', (query) => {
+
       const inlineQueryId = query.id;
       this.logger.log(`Received inline query (ID: ${inlineQueryId}) for game: ${this.gameShortName}`);
       const results: TelegramBot.InlineQueryResult[] = [{
