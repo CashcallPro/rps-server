@@ -224,8 +224,52 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             await this.userService.addCoins(winnerInfo.username, WINNER_AMOUNT_AFTER_FEES);
             this.logger.log(`Added ${WINNER_AMOUNT_AFTER_FEES} coins to winner ${winnerInfo.username} in session ${sessionId}.`);
 
-            await this.adminService.updateAdminCoins(TOTAL_FEE_PER_ROUND);
-            this.logger.log(`Added ${TOTAL_FEE_PER_ROUND} coins to admin for session ${sessionId}.`);
+            // New Group Owner Bonus Logic & Adjusted Admin Fee Payment
+            let adminFeeForThisRound = TOTAL_FEE_PER_ROUND; // Default admin fee
+            const groupOwnerBonusPerOwner = 0.5; // Bonus per unique owner
+
+            if (sessionData.groupOwners && Array.isArray(sessionData.groupOwners) && sessionData.groupOwners.length > 0) {
+                // Filter for valid, unique numeric IDs.
+                const uniqueOwnerIds = new Set(sessionData.groupOwners.filter(id => typeof id === 'number' && id !== null && id !== undefined));
+
+                if (uniqueOwnerIds.size > 0) {
+                    const totalBonusAmount = uniqueOwnerIds.size * groupOwnerBonusPerOwner;
+                    this.logger.log(`Processing group owner bonuses for session ${sessionId}. Unique owners: ${uniqueOwnerIds.size}, Total calculated bonus: ${totalBonusAmount}`);
+
+                    adminFeeForThisRound = Math.max(0, TOTAL_FEE_PER_ROUND - totalBonusAmount);
+                    this.logger.log(`Admin fee before bonus: ${TOTAL_FEE_PER_ROUND}, Total bonus: ${totalBonusAmount}, Admin fee after bonus: ${adminFeeForThisRound}`);
+
+                    for (const ownerId of uniqueOwnerIds) {
+                        try {
+                            // Convert ownerId to string for the service call, as telegramUserId is expected as string.
+                            const ownerUser = await this.userService.findOneByTelegramUserId(ownerId.toString());
+                            if (ownerUser) {
+                                await this.userService.addCoins(ownerUser.username, groupOwnerBonusPerOwner);
+                                this.logger.log(`Successfully distributed ${groupOwnerBonusPerOwner} bonus to group owner ${ownerUser.username} (Telegram ID: ${ownerId}) for session ${sessionId}.`);
+                            } else {
+                                this.logger.warn(`Group owner with Telegram ID ${ownerId} not found. Bonus of ${groupOwnerBonusPerOwner} for session ${sessionId} will not be distributed to this owner.`);
+                            }
+                        } catch (error) {
+                            this.logger.error(`Failed to find or distribute bonus to group owner (Telegram ID: ${ownerId}) for session ${sessionId}: ${error.message}`, error.stack);
+                            // Decide if this error should be part of the addOrAdminError to trigger refund.
+                            // For now, individual owner bonus failure does not stop others or admin fee.
+                        }
+                    }
+                } else {
+                    this.logger.log(`No valid (numeric, non-null) group owner IDs found in sessionData.groupOwners for session ${sessionId}. No bonuses paid.`);
+                }
+            } else {
+                this.logger.log(`No groupOwners array, or it's empty/invalid in sessionData for session ${sessionId}. No bonuses to process.`);
+            }
+
+            // Update admin coins with the (potentially reduced) fee
+            if (adminFeeForThisRound > 0) {
+                await this.adminService.updateAdminCoins(adminFeeForThisRound);
+                this.logger.log(`Added ${adminFeeForThisRound} coins to admin for session ${sessionId} (after potential owner bonuses).`);
+            } else {
+                this.logger.log(`Admin fee is 0 or less for session ${sessionId} after owner bonuses. No coins added to admin.`);
+            }
+            // End of New Group Owner Bonus Logic & Adjusted Admin Fee Payment
 
             // Player messages for win/loss are already set above,
             // but we might need to re-affirm them here if they were default messages
