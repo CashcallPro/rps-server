@@ -14,3 +14,12 @@ export class SendGameScoreDto {
   @IsNotEmpty()
   score: number;
 }
+
+
+export class SendMessageDto {
+  @IsString()
+  message: string;
+
+  @IsString()
+  chatId: string;
+}
