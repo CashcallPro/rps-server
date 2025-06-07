@@ -11,6 +11,7 @@ import { User, UserDocument, Match } from './schemas/user.schema'; // Import Mat
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AddMatchDto } from './dto/add-match.dto'; // Import AddMatchDto
+import { messagesEn } from 'src/i18n/en';
 
 @Injectable()
 export class UsersService {
@@ -28,7 +29,7 @@ export class UsersService {
         return this.findOneByUsername(createUserDto.username)
       }
       this.logger.error(`Failed to create user: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Could not create user.');
+      throw new InternalServerErrorException(messagesEn.COULD_NOT_CREATE_USER);
     }
   }
 
@@ -39,7 +40,7 @@ export class UsersService {
   async findOneByUsername(username: string) { // Return User, not User | null
     const user = await this.userModel.findOne({ username }).exec();
     if (!user) {
-      throw new NotFoundException(`User with username '${username}' not found`);
+      throw new NotFoundException(messagesEn.USER_NOT_FOUND_USERNAME(username));
     }
     return user;
   }
@@ -55,7 +56,7 @@ export class UsersService {
   async findById(id: string): Promise<User> { // Return User, not User | null
     const user = await this.userModel.findById(id).exec();
     if (!user) {
-      throw new NotFoundException(`User with ID '${id}' not found`);
+      throw new NotFoundException(messagesEn.USER_NOT_FOUND_ID(id));
     }
     return user;
   }
@@ -71,7 +72,7 @@ export class UsersService {
 
     if (referralToAdd) {
       if (referralToAdd.trim() === '') {
-        throw new BadRequestException('Referral code to add cannot be empty.');
+        throw new BadRequestException(messagesEn.REFERRAL_CODE_EMPTY);
       }
       updateOps.$push = { referrals: referralToAdd };
     }
@@ -79,7 +80,7 @@ export class UsersService {
     if (Object.keys(updateOps).length === 0) {
       const existingUser = await this.userModel.findOne({ telegramUserId: userId }).exec();
       if (!existingUser) {
-        throw new NotFoundException(`User with telegramId '${userId}' not found`);
+        throw new NotFoundException(messagesEn.USER_NOT_FOUND_TELEGRAM_ID(userId));
       }
       return existingUser;
     }
@@ -93,7 +94,7 @@ export class UsersService {
       .exec();
 
     if (!updatedUser) {
-      throw new NotFoundException(`User with telegramId '${userId}' not found`);
+      throw new NotFoundException(messagesEn.USER_NOT_FOUND_TELEGRAM_ID(userId));
     }
     return updatedUser;
   }
@@ -103,7 +104,7 @@ export class UsersService {
       .findOneAndUpdate({ username }, updateUserDto, { new: true })
       .exec();
     if (!updatedUser) {
-      throw new NotFoundException(`User with username '${username}' not found`);
+      throw new NotFoundException(messagesEn.USER_NOT_FOUND_USERNAME(username));
     }
     return updatedUser;
   }
@@ -111,14 +112,14 @@ export class UsersService {
   async remove(username: string): Promise<User> { // Return User, not User | null
     const deletedUser = await this.userModel.findOneAndDelete({ username }).exec();
     if (!deletedUser) {
-      throw new NotFoundException(`User with username '${username}' not found`);
+      throw new NotFoundException(messagesEn.USER_NOT_FOUND_USERNAME(username));
     }
     return deletedUser;
   }
 
   async addCoins(username: string, amount: number): Promise<User> {
     if (amount < 0) {
-      throw new BadRequestException('Amount to add must be non-negative.');
+      throw new BadRequestException(messagesEn.AMOUNT_NON_NEGATIVE);
     }
     const user = await this.userModel.findOneAndUpdate(
       { username },
@@ -127,7 +128,7 @@ export class UsersService {
     ).exec();
 
     if (!user) {
-      throw new NotFoundException(`User with username '${username}' not found`);
+      throw new NotFoundException(messagesEn.USER_NOT_FOUND_USERNAME(username));
     }
     return user;
   }
@@ -135,11 +136,11 @@ export class UsersService {
   async removeCoins(username: string, amount: number): Promise<User> {
     // ... (existing code)
     if (amount < 0) {
-      throw new BadRequestException('Amount to remove must be non-negative.');
+      throw new BadRequestException(messagesEn.AMOUNT_NON_NEGATIVE);
     }
     const user = await this.findOneByUsername(username);
     if (user.coins < amount) {
-      throw new BadRequestException(`User '${username}' has insufficient coins. Available: ${user.coins}, Tried to remove: ${amount}`);
+      throw new BadRequestException(messagesEn.USER_INSUFFICIENT_COINS(username, user.coins, amount));
     }
     const updatedUser = await this.userModel.findOneAndUpdate(
       { username },
@@ -147,7 +148,7 @@ export class UsersService {
       { new: true },
     ).exec();
     if (!updatedUser) { // Should ideally not happen if findOneByUsername passed
-      throw new NotFoundException(`User with username '${username}' not found during coin removal.`);
+      throw new NotFoundException(messagesEn.USER_NOT_FOUND_USERNAME(username));
     }
     return updatedUser;
   }
@@ -161,9 +162,7 @@ export class UsersService {
       (match) => match.sessionId === addMatchDto.sessionId,
     );
     if (existingMatch) {
-      throw new BadRequestException(
-        `Match with sessionId '${addMatchDto.sessionId}' already recorded for user '${username}'.`,
-      );
+      throw new BadRequestException(messagesEn.MATCH_ALREADY_RECORDED(addMatchDto.sessionId, username));
     }
 
     // Create a new match object conforming to the Match sub-schema
@@ -183,7 +182,7 @@ export class UsersService {
         `Failed to add match for user '${username}': ${error.message}`,
         error.stack,
       );
-      throw new InternalServerErrorException('Could not record the match.');
+      throw new InternalServerErrorException(messagesEn.COULD_NOT_RECORD_MATCH);
     }
   }
 

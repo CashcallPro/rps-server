@@ -17,6 +17,7 @@ import { UsersService } from 'src/users/users.service';
 import { AdminService } from 'src/admin/admin.service';
 import { BotService } from 'src/bot/bot.service';
 import { RevshareService } from 'src/revshare/revshare.service';
+import { messagesEn } from 'src/i18n/en';
 
 type Choice = 'rock' | 'paper' | 'scissors';
 
@@ -183,33 +184,33 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     if (!player1Choice) { // Player 2 wins by P1 timeout/no choice
       winnerSocketId = player2SocketId;
       loserSocketId = player1SocketId;
-      player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer1 || 'You defaulted'})`; // Default message
-      player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer2 || 'defaulted'})`; // Default message
+      player1ResultMsg = messagesEn.LOST_ROUND_DEFAULT(ROUND_BET_AMOUNT, reasonPlayer1);
+      player2ResultMsg = messagesEn.WON_ROUND_DEFAULT(WINNER_AMOUNT_AFTER_FEES, reasonPlayer2);
       sessionData.scores[player2SocketId]++;
     } else if (!player2Choice) { // Player 1 wins by P2 timeout/no choice
       winnerSocketId = player1SocketId;
       loserSocketId = player2SocketId;
-      player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer1 || 'defaulted'})`; // Default message
-      player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer2 || 'You defaulted'})`; // Default message
+      player1ResultMsg = messagesEn.WON_ROUND_DEFAULT(WINNER_AMOUNT_AFTER_FEES, reasonPlayer1);
+      player2ResultMsg = messagesEn.LOST_ROUND_DEFAULT(ROUND_BET_AMOUNT, reasonPlayer2);
       sessionData.scores[player1SocketId]++;
     } else { // Both players made choices
       const outcomeForPlayer1 = this.determineOutcome(player1Choice, player2Choice);
       if (outcomeForPlayer1 === 'win') {
         winnerSocketId = player1SocketId;
         loserSocketId = player2SocketId;
-        player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`;
-        player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;
+        player1ResultMsg = messagesEn.WON_ROUND(WINNER_AMOUNT_AFTER_FEES);
+        player2ResultMsg = messagesEn.LOST_ROUND(ROUND_BET_AMOUNT);
         sessionData.scores[player1SocketId]++;
       } else if (outcomeForPlayer1 === 'loss') {
         winnerSocketId = player2SocketId;
         loserSocketId = player1SocketId;
-        player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}.`;
-        player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}!`;
+        player1ResultMsg = messagesEn.LOST_ROUND(ROUND_BET_AMOUNT);
+        player2ResultMsg = messagesEn.WON_ROUND(WINNER_AMOUNT_AFTER_FEES);
         sessionData.scores[player2SocketId]++;
       } else { // Actual Tie
         isActualTie = true;
-        player1ResultMsg = "It's a tie! No coins have been changed.";
-        player2ResultMsg = "It's a tie! No coins have been changed.";
+        player1ResultMsg = messagesEn.ROUND_TIE;
+        player2ResultMsg = messagesEn.ROUND_TIE;
         // No score change in a tie, no winner/loser for coin purposes
       }
     }
@@ -249,7 +250,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                     const ownerUser = await this.userService.findOneByTelegramUserId(ownerId.toString());
                     if (ownerUser) {
                       await this.userService.addCoins(ownerUser.username, groupOwnerBonusPerOwner);
-                      this.botService.sendMessage(ownerId, `Bonus received ${groupOwnerBonusPerOwner} $GRPS, from @${player1Info.username} vs @${player2Info.username}`)
+                      this.botService.sendMessage(ownerId, messagesEn.GROUP_OWNER_BONUS_NOTIFICATION(groupOwnerBonusPerOwner, player1Info.username, player2Info.username));
                       this.logger.log(`Successfully distributed ${groupOwnerBonusPerOwner} bonus to group owner ${ownerUser.username} (Telegram ID: ${ownerId}) for session ${sessionId}.`);
                     } else {
                       this.logger.warn(`Group owner with Telegram ID ${ownerId} not found. Bonus of ${groupOwnerBonusPerOwner} for session ${sessionId} will not be distributed to this owner.`);
@@ -283,11 +284,11 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             // For now, assuming the messages set when winner/loserSocketId are determined are sufficient.
             // Re-setting messages explicitly here if they were default, to confirm amounts.
             if (player1Choice && !player2Choice) { // P1 won by P2 default
-              player1ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer1 || 'defaulted'})`;
-              player2ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer2 || 'You defaulted'})`;
+              player1ResultMsg = messagesEn.WON_ROUND_DEFAULT(WINNER_AMOUNT_AFTER_FEES, reasonPlayer1);
+              player2ResultMsg = messagesEn.LOST_ROUND_DEFAULT(ROUND_BET_AMOUNT, reasonPlayer2);
             } else if (!player1Choice && player2Choice) { // P2 won by P1 default
-              player1ResultMsg = `You lost $${ROUND_BET_AMOUNT}. (${reasonPlayer1 || 'You defaulted'})`;
-              player2ResultMsg = `You won $${WINNER_AMOUNT_AFTER_FEES}! (Opponent ${reasonPlayer2 || 'defaulted'})`;
+              player1ResultMsg = messagesEn.LOST_ROUND_DEFAULT(ROUND_BET_AMOUNT, reasonPlayer1);
+              player2ResultMsg = messagesEn.WON_ROUND_DEFAULT(WINNER_AMOUNT_AFTER_FEES, reasonPlayer2);
             } // If both chose, messages are already accurate.
 
 
@@ -300,19 +301,19 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
               this.logger.error(`CRITICAL REFUND FAILURE: Failed to refund ${loserInfo.username} after an error. Coins might be lost from loser. Error: ${refundError.message}`);
             }
             // Reset messages to reflect error
-            player1ResultMsg = 'Round processing error. Bet may be voided.';
-            player2ResultMsg = 'Round processing error. Bet may be voided.';
+            player1ResultMsg = messagesEn.ROUND_PROCESSING_ERROR;
+            player2ResultMsg = messagesEn.ROUND_PROCESSING_ERROR;
           }
         } catch (removeError) {
           this.logger.warn(`Failed to remove coins from loser ${loserInfo.username} in session ${sessionId} (Potentially insufficient funds or other error): ${removeError.message}`);
           // Update messages to reflect no coins exchanged if deduction failed.
           // Use original player1ResultMsg and player2ResultMsg and append, rather than replacing specific amounts.
           if (winnerSocketId === player1SocketId) {
-            player1ResultMsg = (player1ResultMsg.includes('won') ? player1ResultMsg.split('!')[0] : 'You won') + `! (Opponent couldn't cover bet - no winnings transferred)`;
-            player2ResultMsg = (player2ResultMsg.includes('lost') ? player2ResultMsg.split('.')[0] : 'You lost') + `. (Bet voided - you did not have enough coins)`;
+            player1ResultMsg = (player1ResultMsg.includes('won') ? player1ResultMsg.split('!')[0] : messagesEn.WON_ROUND(0).split('!')[0]) + `! ${messagesEn.OPPONENT_CANT_COVER_BET}`;
+            player2ResultMsg = (player2ResultMsg.includes('lost') ? player2ResultMsg.split('.')[0] : messagesEn.LOST_ROUND(0).split('.')[0]) + `. ${messagesEn.BET_VOIDED_INSUFFICIENT_COINS}`;
           } else {
-            player2ResultMsg = (player2ResultMsg.includes('won') ? player2ResultMsg.split('!')[0] : 'You won') + `! (Opponent couldn't cover bet - no winnings transferred)`;
-            player1ResultMsg = (player1ResultMsg.includes('lost') ? player1ResultMsg.split('.')[0] : 'You lost') + `. (Bet voided - you did not have enough coins)`;
+            player2ResultMsg = (player2ResultMsg.includes('won') ? player2ResultMsg.split('!')[0] : messagesEn.WON_ROUND(0).split('!')[0]) + `! ${messagesEn.OPPONENT_CANT_COVER_BET}`;
+            player1ResultMsg = (player1ResultMsg.includes('lost') ? player1ResultMsg.split('.')[0] : messagesEn.LOST_ROUND(0).split('.')[0]) + `. ${messagesEn.BET_VOIDED_INSUFFICIENT_COINS}`;
           }
         }
       }
@@ -381,12 +382,12 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
         // Emit a specific event or use game_ended with a reason
         this.server.to(player1SocketId).emit('game_ended_insufficient_funds', {
-          message: `Game over. ${endReason} You have ${p1Balance} coins.`,
+          message: messagesEn.GAME_OVER_INSUFFICIENT_FUNDS(endReason, p1Balance),
           canContinue: p1CanContinue,
           session: sessionData
         });
         this.server.to(player2SocketId).emit('game_ended_insufficient_funds', {
-          message: `Game over. ${endReason} You have ${p2Balance} coins.`,
+          message: messagesEn.GAME_OVER_INSUFFICIENT_FUNDS(endReason, p2Balance),
           canContinue: p2CanContinue,
           session: sessionData
         });
@@ -399,11 +400,11 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         // Here, we are ending the game directly, not via a player's 'end_game' message.
       } else {
         // Both can continue, optionally notify them they can start next round
-        this.server.to(player1SocketId).emit('next_round_ready', { message: 'Next round. Make your choice!' });
-        this.server.to(player2SocketId).emit('next_round_ready', { message: 'Next round. Make your choice!' });
+        this.server.to(player1SocketId).emit('next_round_ready', { message: messagesEn.NEXT_ROUND_READY });
+        this.server.to(player2SocketId).emit('next_round_ready', { message: messagesEn.NEXT_ROUND_READY });
       }
     } else { // Bot game, always ready for next round from player's perspective
-      this.server.to(player1SocketId).emit('next_round_ready', { message: 'Next round. Make your choice!' });
+      this.server.to(player1SocketId).emit('next_round_ready', { message: messagesEn.NEXT_ROUND_READY });
     }
   }
 
@@ -426,14 +427,14 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     } catch (error) {
       this.logger.error(`Error during user check/create for ${data.username} (Socket ID: ${clientId}): ${error.message}`, error.stack);
       // If user creation/fetching fails, they can't play.
-      client.emit('matchmaking_failed_system_error', { message: 'There was a problem preparing your game. Please try again later.' });
+      client.emit('matchmaking_failed_system_error', { message: messagesEn.MATCHMAKING_FAILED_SYSTEM_ERROR });
       return;
     }
 
     if (!userCanAffordFirstRound) {
       this.logger.log(`User ${data.username} (Socket ID: ${clientId}) has insufficient coins (${userBalance}) for the first round bet of ${ROUND_BET_AMOUNT}. Not adding to queue.`);
       client.emit('matchmaking_failed_insufficient_coins', {
-        message: `You need ${ROUND_BET_AMOUNT} coins to start a match. Your current balance is ${userBalance}.`,
+        message: messagesEn.MATCHMAKING_FAILED_INSUFFICIENT_COINS(ROUND_BET_AMOUNT, userBalance),
         required: ROUND_BET_AMOUNT,
         currentBalance: userBalance,
       });
@@ -443,13 +444,13 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const isAlreadyInQueue = this.matchmakingQueue.some(p => p.socketId === clientId);
     if (isAlreadyInQueue) {
       this.logger.warn(`Socket ${clientId} (User: ${data.username}) is already in the matchmaking queue.`);
-      client.emit('already_in_queue', { message: 'You are already searching for a match.' });
+      client.emit('already_in_queue', { message: messagesEn.ALREADY_IN_QUEUE });
       return;
     }
 
     if (this.socketToSessionMap.has(clientId)) {
       this.logger.warn(`User ${data.username} (Socket ID: ${clientId}) is already in an active session: ${this.socketToSessionMap.get(clientId)}. Cannot join matchmaking.`);
-      client.emit('already_in_session', { message: 'You are already in an active game session.' });
+      client.emit('already_in_session', { message: messagesEn.ALREADY_IN_SESSION });
       return;
     }
 
@@ -533,11 +534,11 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.matchmakingQueue.unshift(player1, player2);
         this.socketToSessionMap.delete(player1.socketId);
         this.socketToSessionMap.delete(player2.socketId);
-        this.server.to(player1.socketId).emit('matchmaking_error', { message: 'Server error starting match. Please try again.' });
-        this.server.to(player2.socketId).emit('matchmaking_error', { message: 'Server error starting match. Please try again.' });
+        this.server.to(player1.socketId).emit('matchmaking_error', { message: messagesEn.MATCHMAKING_ERROR_SERVER });
+        this.server.to(player2.socketId).emit('matchmaking_error', { message: messagesEn.MATCHMAKING_ERROR_SERVER });
       }
     } else {
-      client.emit('waiting_for_opponent', { message: 'In queue, waiting for an opponent.' });
+      client.emit('waiting_for_opponent', { message: messagesEn.WAITING_FOR_OPPONENT });
       const botMatchTimer = setTimeout(() => {
         this.matchWithBot(player.socketId);
       }, this.matchmakingBotTimeout);
@@ -606,7 +607,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       this.logger.error(`Failed to set bot session ${sessionId} in Redis for ${player1.username}:`, error);
       this.matchmakingQueue.unshift(player1);
       this.socketToSessionMap.delete(player1.socketId);
-      this.server.to(player1.socketId).emit('matchmaking_error', { message: 'Server error starting bot match. Please try again.' });
+      this.server.to(player1.socketId).emit('matchmaking_error', { message: messagesEn.MATCHMAKING_ERROR_BOT_SERVER });
     }
   }
 
@@ -617,7 +618,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     if (this.socketToSessionMap.has(clientId)) {
       this.logger.log(`Client ${clientId} tried to cancel matchmaking but is already in session ${this.socketToSessionMap.get(clientId)}.`);
-      client.emit('cannot_cancel_in_game', { message: 'You are already in a game and cannot cancel matchmaking.' });
+      client.emit('cannot_cancel_in_game', { message: messagesEn.CANNOT_CANCEL_IN_GAME });
       return;
     }
 
@@ -631,10 +632,10 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     if (playerIndex > -1) {
       const removedPlayer = this.matchmakingQueue.splice(playerIndex, 1)[0];
       this.logger.log(`Player ${removedPlayer.username} (Socket ID: ${clientId}) cancelled matchmaking. Queue size: ${this.matchmakingQueue.length}`);
-      client.emit('matchmaking_cancelled', { message: 'You have been removed from the matchmaking queue.' });
+      client.emit('matchmaking_cancelled', { message: messagesEn.MATCHMAKING_CANCELLED });
     } else {
       this.logger.log(`Client ${clientId} tried to cancel matchmaking but was not found in queue.`);
-      client.emit('not_in_queue', { message: 'You are not currently in the matchmaking queue or have already been matched.' });
+      client.emit('not_in_queue', { message: messagesEn.NOT_IN_QUEUE });
     }
   }
 
@@ -648,7 +649,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     if (!sessionId || !choice || !['rock', 'paper', 'scissors'].includes(choice)) {
       this.logger.warn(`Invalid choice data from ${currentPlayerId}: ${JSON.stringify(data)}`);
-      client.emit('error_occurred', { message: 'Invalid choice data.' });
+      client.emit('error_occurred', { message: messagesEn.INVALID_CHOICE_DATA });
       return;
     }
 
@@ -656,7 +657,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const sessionString = await this.redisService.get(sessionId);
       if (!sessionString) {
         this.logger.warn(`Session ${sessionId} not found for choice by ${currentPlayerId}.`);
-        client.emit('error_occurred', { message: 'Session not found or ended.' });
+        client.emit('error_occurred', { message: messagesEn.SESSION_NOT_FOUND_OR_ENDED });
         return;
       }
 
@@ -664,13 +665,13 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const currentPlayerInfo = sessionData.players.find(p => p.socketId === currentPlayerId);
       if (!currentPlayerInfo) {
         this.logger.warn(`Player ${currentPlayerId} not part of session ${sessionId}.`);
-        client.emit('error_occurred', { message: 'You are not in this game session.' });
+        client.emit('error_occurred', { message: messagesEn.NOT_IN_GAME_SESSION });
         return;
       }
 
       if (sessionData.choices[currentPlayerId] !== null) {
         this.logger.log(`Player ${currentPlayerInfo.username} already chose in session ${sessionId}.`);
-        client.emit('choice_already_made', { message: 'You have already made your choice for this round.' });
+        client.emit('choice_already_made', { message: messagesEn.CHOICE_ALREADY_MADE });
         return;
       }
 
@@ -680,7 +681,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
           if (userMakingChoice.coins < ROUND_BET_AMOUNT) {
             this.logger.warn(`Player ${currentPlayerInfo.username} (Socket: ${currentPlayerId}) in session ${sessionId} has insufficient coins (${userMakingChoice.coins}) to make a choice (bet: ${ROUND_BET_AMOUNT}).`);
             client.emit('insufficient_coins_for_round', {
-              message: `You need ${ROUND_BET_AMOUNT} coins to make a choice for this round. Your balance: ${userMakingChoice.coins}.`,
+              message: messagesEn.INSUFFICIENT_COINS_FOR_ROUND_CHOICE(ROUND_BET_AMOUNT, userMakingChoice.coins),
               required: ROUND_BET_AMOUNT,
               current: userMakingChoice.coins,
             });
@@ -694,7 +695,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
           }
         } catch (error) {
           this.logger.error(`Error checking coins for ${currentPlayerInfo.username} in session ${sessionId}: ${error.message}`);
-          client.emit('error_occurred', { message: 'Server error checking your coin balance.' });
+          client.emit('error_occurred', { message: messagesEn.SERVER_ERROR_CHECKING_BALANCE });
           return;
         }
       }
@@ -707,7 +708,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       if (!opponentInfo) {
         this.logger.error(`Opponent not found for ${currentPlayerInfo.username} in session ${sessionId}. Critical error.`);
         await this.cleanUpSession(sessionId, [currentPlayerId]);
-        client.emit('error_occurred', { message: 'Critical server error: Opponent data missing. Session ended.' });
+        client.emit('error_occurred', { message: messagesEn.CRITICAL_OPPONENT_DATA_MISSING });
         return;
       }
       const opponentId = opponentInfo.socketId;
@@ -718,7 +719,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         sessionData.choices[opponentId] = botChoice;
         this.logger.log(`Bot ${opponentInfo.username} (ID: ${opponentId}) in session ${sessionId} auto-chose: ${botChoice}`);
 
-        client.emit('choice_registered', { message: 'Choice registered. Bot is making its move...' });
+        client.emit('choice_registered', { message: messagesEn.CHOICE_REGISTERED_BOT_MOVING });
         setTimeout(async () => {
           await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, botChoice);
         }, 500);
@@ -745,10 +746,10 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
               // Award win to currentPlayer because opponent cannot cover bet
               this.server.to(currentPlayerId).emit('opponent_forfeit_coins', {
-                message: `${opponentInfo.username} cannot cover the bet of ${ROUND_BET_AMOUNT} coins and forfeits the round. You win!`,
+                message: messagesEn.UNABLE_TO_COVER_BET(opponentInfo.username, ROUND_BET_AMOUNT),
               });
               this.server.to(opponentId).emit('forfeit_coins', {
-                message: `You do not have enough coins (${ROUND_BET_AMOUNT}) to cover the bet and forfeit the round.`,
+                message: messagesEn.FORFEIT_BET_INSUFFICIENT_COINS(ROUND_BET_AMOUNT),
               });
 
               // Update scores: currentPlayer wins, opponent loses
@@ -759,8 +760,8 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 sessionData, sessionId,
                 currentPlayerId, choice, // Current player made a choice
                 opponentId, null,       // Opponent effectively made no choice / forfeited
-                `${opponentInfo.username} forfeited due to insufficient coins.`,
-                `You forfeited due to insufficient coins.`,
+                `${opponentInfo.username} forfeited due to insufficient coins.`, // reasonPlayer1 for logs
+                `You forfeited due to insufficient coins.`, // reasonPlayer2 for logs
                 false // isBotRound
               );
               return; // Round processed due to forfeit
@@ -773,9 +774,9 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
           await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, opponentChoice);
         } else {
-          client.emit('choice_registered', { message: 'Choice registered. Waiting for opponent.' });
+          client.emit('choice_registered', { message: messagesEn.CHOICE_REGISTERED_WAITING_OPPONENT });
           this.server.to(opponentId).emit('opponent_made_choice', {
-            message: `${currentPlayerInfo.username} made their choice! You have ${this.turnTimeoutDuration / 1000}s.`,
+            message: messagesEn.OPPONENT_MADE_CHOICE_YOUR_TURN(currentPlayerInfo.username, this.turnTimeoutDuration / 1000),
             timerDetails: {
               activeFor: opponentId,
               duration: this.turnTimeoutDuration,
@@ -802,8 +803,8 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 currentSessionData, sessionId,
                 currentPlayerId, currentSessionData.choices[currentPlayerId],
                 opponentId, null,
-                `${opponentInfo.username} timed out.`,
-                `You timed out.`,
+                `${opponentInfo.username} timed out.`, // reasonPlayer1 for logs
+                `You timed out.`, // reasonPlayer2 for logs
               );
             } else {
               this.logger.log(`Timer for ${opponentInfo.username} in ${sessionId} expired, but state changed. No action from this timer.`);
@@ -817,7 +818,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       }
     } catch (error) {
       this.logger.error(`Error processing choice for session ${sessionId} by ${currentPlayerId}:`, error);
-      client.emit('error_occurred', { message: 'Server error processing your choice.' });
+      client.emit('error_occurred', { message: messagesEn.SERVER_ERROR_PROCESSING_CHOICE });
     }
   }
 
@@ -849,7 +850,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     if (!sessionId) {
       this.logger.warn(`'end_game' received from ${clientId} without a sessionId.`);
-      client.emit('error_occurred', { message: 'Session ID is required to end the game.' });
+      client.emit('error_occurred', { message: messagesEn.SESSION_ID_REQUIRED_TO_END_GAME });
       return;
     }
 
@@ -857,7 +858,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const sessionString = await this.redisService.get(sessionId);
       if (!sessionString) {
         this.logger.warn(`Session ${sessionId} not found for 'end_game' request by ${clientId}.`);
-        client.emit('game_already_ended', { message: 'Game session not found or already ended.' });
+        client.emit('game_already_ended', { message: messagesEn.GAME_ALREADY_ENDED });
         if (this.socketToSessionMap.get(clientId) === sessionId) {
           this.socketToSessionMap.delete(clientId);
         }
@@ -869,11 +870,11 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
       if (!playerInitiating) {
         this.logger.warn(`Client ${clientId} is not part of session ${sessionId} but tried to end it.`);
-        client.emit('error_occurred', { message: 'You are not part of this game session.' });
+        client.emit('error_occurred', { message: messagesEn.NOT_IN_GAME_SESSION });
         return;
       }
 
-      const endMessage = `${playerInitiating.username} has ended the game.`;
+      const endMessage = messagesEn.GAME_ENDED_BY_PLAYER(playerInitiating.username);
       const playerSocketIdsInSession: string[] = [];
 
       sessionData.players.forEach(p => {
@@ -901,7 +902,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     } catch (error) {
       this.logger.error(`Error handling 'end_game' for session ${sessionId} by ${clientId}:`, error);
-      client.emit('error_occurred', { message: 'Server error ending the game.' });
+      client.emit('error_occurred', { message: messagesEn.SERVER_ERROR_ENDING_GAME });
     }
   }
 
@@ -936,7 +937,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
           if (opponent && !opponent.socketId.startsWith(this.BOT_ID_PREFIX)) {
             this.server.to(opponent.socketId).emit('opponent_disconnected', {
-              message: `${disconnectedPlayer?.username || 'Opponent'} has disconnected. The game has ended.`,
+              message: messagesEn.OPPONENT_DISCONNECTED(disconnectedPlayer?.username),
             });
             this.logger.log(`Notified opponent ${opponent.username} in session ${sessionId} about ${disconnectedPlayer?.username}'s disconnection.`);
           } else if (opponent && opponent.socketId.startsWith(this.BOT_ID_PREFIX)) {
