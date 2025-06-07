@@ -12,6 +12,9 @@ export class Revshare {
   groupHandle?: string;
 
   @Prop({ required: false })
+  groupUsername?: string; // New field
+
+  @Prop({ required: false })
   groupId?: string;
 
   @Prop({

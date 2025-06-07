@@ -16,13 +16,15 @@ export class RevshareService {
     groupHandle?: string,
     groupId?: string,
     message?: string,
+    groupUsername?: string, // New parameter
   ): Promise<Revshare> {
     this.logger.log(
-      `Creating revshare request for telegramUserId: ${telegramUserId}`,
+      `Creating revshare request for telegramUserId: ${telegramUserId}, groupUsername: ${groupUsername}`,
     );
     const newRequest = new this.revshareModel({
       telegramUserId,
-      groupHandle,
+      groupHandle, // Potentially store raw input if different from username
+      groupUsername, // Store the processed username
       groupId,
       message,
       status: 'pending', // Default status

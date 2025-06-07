@@ -287,23 +287,48 @@ Once you do that, we’ll activate revenue share for your group automatically. �
             this.logger.log(`Bot was added to group '${groupTitle}' (ID: ${groupId}) by user ${adderUserId}.`);
             try {
               const request = await this.revshareService.findRequestByTelegramUserId(adderUserId);
-              if (request && request.status === 'pending' && !request.groupId) {
-                await this.revshareService.updateRequest(adderUserId, {
+              // Condition: Update if pending and (groupId isn't set OR (group has a username AND groupUsername isn't set in request))
+              if (request && request.status === 'pending' && (!request.groupId || (msg.chat.username && !request.groupUsername))) {
+                const updateData: Partial<Omit<Revshare, 'telegramUserId' | 'status'>> = { // Omit status as well, not changing it here
                   groupId: groupId,
-                  message: `Bot added to group: ${groupTitle} (${groupId}) by ${adderUserId}`
-                });
-                this.logger.log(`Revshare request for ${adderUserId} updated with groupId ${groupId}.`);
+                  message: request.message || '', // Preserve existing message or initialize
+                };
+
+                const chatUsername = msg.chat.username; // From Telegram API, no '@'
+                let messageUpdate = `Bot added to group: ${groupTitle} (${groupId}) by ${adderUserId}.`;
+
+                if (chatUsername) {
+                  updateData.groupUsername = chatUsername;
+                  updateData.groupHandle = `@${chatUsername}`; // Add '@' for groupHandle
+                  messageUpdate += ` Group username: @${chatUsername}.`;
+                  this.logger.log(`Group '${groupTitle}' (ID: ${groupId}) has username: '${chatUsername}'. Will update revshare request.`);
+                } else {
+                  messageUpdate += ` Group has no username.`;
+                  this.logger.log(`Group '${groupTitle}' (ID: ${groupId}) does not have a username. Only groupId will be updated (if missing).`);
+                }
+
+                // Append to existing message or set if new
+                updateData.message = request.message ? `${request.message}; ${messageUpdate}` : messageUpdate;
+
+                await this.revshareService.updateRequest(adderUserId, updateData);
+                this.logger.log(`Revshare request for ${adderUserId} updated with groupId ${groupId}` + (chatUsername ? ` and groupUsername '${chatUsername}'` : '') + `.`);
                 // No message to user is specified, just update the record.
                 return; // Message handled
-              } else if (request && request.status === 'pending' && request.groupId) {
-                this.logger.log(`Revshare request for ${adderUserId} already has groupId ${request.groupId}. No update needed for group ${groupId}.`);
-              } else if (!request) {
+              } else if (request && request.status === 'pending') {
+                // Log why no update happened if it was pending
+                let logReason = `Revshare request for ${adderUserId} (group ${groupId}) not updated:`;
+                if (request.groupId) logReason += ` groupId already exists (${request.groupId}).`;
+                if (msg.chat.username && request.groupUsername) logReason += ` groupUsername already exists (${request.groupUsername}).`;
+                if (!msg.chat.username && request.groupId) logReason += ` Group has no username and groupId already exists.`;
+                this.logger.log(logReason);
+              }
+              else if (!request) {
                 this.logger.log(`No pending revshare request found for user ${adderUserId} who added bot to group ${groupId}.`);
-              } else {
-                this.logger.log(`Revshare request for ${adderUserId} is not in a state to be updated with groupId (status: ${request.status}).`);
+              } else { // Request exists but not pending
+                this.logger.log(`Revshare request for ${adderUserId} is not in 'pending' state (status: ${request.status}). No update for group ${groupId}.`);
               }
             } catch (error) {
-              this.logger.error(`Error updating revshare request with groupId for user ${adderUserId} and group ${groupId}:`, error);
+              this.logger.error(`Error updating revshare request with groupId/groupUsername for user ${adderUserId} and group ${groupId}:`, error);
             }
           } else {
             this.logger.warn(`Bot added to group ${groupId} (${groupTitle}), but could not identify the user who added it.`);
@@ -328,11 +353,15 @@ Once you do that, we’ll activate revenue share for your group automatically. �
         try {
           const request = await this.revshareService.findRequestByTelegramUserId(telegramUserId);
 
-          // Check if there's a pending request that is awaiting a group handle
-          if (request && request.status === 'pending' && !request.groupHandle) {
+          // Update if there's a pending request and groupUsername hasn't been set yet.
+          if (request && request.status === 'pending' && !request.groupUsername) {
+            const rawGroupHandle = text;
+            const processedGroupUsername = text.substring(1); // Remove '@'
+
             await this.revshareService.updateRequest(telegramUserId, {
-              groupHandle: text,
-              message: `Group handle submitted: ${text}` // Updated message field
+              groupHandle: rawGroupHandle, // Store raw input like "@mygroup"
+              groupUsername: processedGroupUsername, // Store "mygroup"
+              message: `Group username submitted: ${processedGroupUsername} (raw: ${rawGroupHandle})`
             });
 
             const confirmationMessage = `Perfect! ✅
@@ -342,14 +371,22 @@ Your rev-share request will be reviewed soon and you’ll be informed here.
 Please be patient — we’re receiving a high volume of requests from group admins. 🙏
 Thanks for joining the RPS Titans partner network! 💪`;
             this.bot.sendMessage(chatId, confirmationMessage);
-            this.logger.log(`Group handle '${text}' submitted by ${telegramUserId} and request updated.`);
+            this.logger.log(`Group handle '${rawGroupHandle}' (username: '${processedGroupUsername}') submitted by ${telegramUserId} and request updated.`);
             return; // Handled as group handle submission
-          } else {
-            // Log if it starts with @ but doesn't match criteria (e.g., no pending request, or handle already submitted)
-            this.logger.log(`Received message starting with @ from ${telegramUserId}, but not a valid pending group handle submission: ${text}`);
+          } else if (request && request.status === 'pending' && request.groupUsername) {
+            // User might be re-submitting or submitted a different handle.
+            // For now, we log and don't send a message to avoid clutter if they are just correcting a typo quickly.
+            this.logger.log(`User ${telegramUserId} tried to submit group handle '${text}', but groupUsername '${request.groupUsername}' already exists.`);
+            // Optionally, inform the user:
+            // this.bot.sendMessage(chatId, "You've already submitted a group username. If you need to change it, please contact support.");
+            return; // Still handled, even if it's a re-submission.
+          }
+           else {
+            // Log if it starts with @ but doesn't match criteria (e.g., no pending request, or request not pending)
+            this.logger.log(`Received message starting with @ from ${telegramUserId} (${text}), but not a valid pending group username submission (Status: ${request?.status}, GroupUserame: ${request?.groupUsername}).`);
           }
         } catch (error) {
-          this.logger.error(`Error processing potential group handle for user ${telegramUserId}:`, error);
+          this.logger.error(`Error processing group handle message for user ${telegramUserId}:`, error);
           // Optionally, send an error message to the user
           // this.bot.sendMessage(chatId, 'There was an error processing your message. Please try again.');
         }
