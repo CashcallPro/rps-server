@@ -63,8 +63,13 @@ export class BotService implements OnModuleInit {
         .catch(err => this.logger.error(`Error sending game to ${chatId}:`, err.response?.body || err.message || err));
     });
 
-    this.bot.onText(/\/here(?: (.+))?/, async (msg, match) => {
+    this.bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
       const chatId = msg.chat.id;
+      const username = msg?.from?.username || `${msg?.from?.first_name} ${msg?.from?.last_name || ''}`.trim();
+      const userId = msg?.from?.id.toString() || username;
+      const referralCode = match?.[1];
+
+      this.logger.log(`Received /start command from ${username} (ID: ${userId}) referralCode: ${referralCode}`);
 
       const welcomeMessage: string = `Welcome to PRS Titans Online Multiplayer Game!
 
@@ -83,7 +88,7 @@ You win -> take your cash 🚀`;
               { text: '👋 Join Channel', url: 'https://t.me/rps_titans' } // Replace with actual URL
             ],
             [
-              { text: '🎁 Referral', url: 'https://example.com/hamsterboost' } // TODO: on here user receive a referral link from us to share 
+              { text: '🎁 Referral', callback_data: 'request_referral_link' } 
             ],
             [
               { text: '💵 Earn More!', url: 'https://t.me/your_channel_username' } // TODO: this button would tell him the how to become group admin and earn revenue-share 
@@ -92,23 +97,6 @@ You win -> take your cash 🚀`;
         }
       };
 
-      this.bot.sendMessage(chatId, welcomeMessage, options)
-        .then(() => {
-          console.log(`Sent welcome message with inline keyboard to chat ID: ${chatId} for /here command`);
-        })
-        .catch((error: Error) => {
-          console.error(`Error sending message to ${chatId}:`, error.message);
-        });
-    })
-
-    this.bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
-      const chatId = msg.chat.id;
-      const username = msg?.from?.username || `${msg?.from?.first_name} ${msg?.from?.last_name || ''}`.trim();
-      const userId = msg?.from?.id.toString() || username;
-      const referralCode = match?.[1];
-
-      this.logger.log(`Received /start command from ${username} (ID: ${userId}) referralCode: ${referralCode}`);
-
       if (referralCode == userId) {
         this.sendMessage(chatId, 'You can\'t refer yourself')
       }
@@ -116,29 +104,33 @@ You win -> take your cash 🚀`;
       const userExists = await this.userService.findOneByTelegramUserId(userId)
 
       if (userExists) {
-
         this.sendMessage(chatId, "You have already joined!")
-        return
+        // Welcome message will be sent after this block
+      } else {
+        // Create user only if they don't exist
+        const user: CreateUserDto = {
+          coins: 0,
+          username: username,
+          telegramUserId: userId,
+        }
+
+        if (referralCode) {
+          user.refereeId = referralCode
+          const refereeUser = await this.userService.findOneByTelegramUserId(referralCode)
+          this.userService.updateByTelegramId(referralCode, { referralToAdd: userId })
+          this.sendMessage(chatId, `You have joined using ${refereeUser?.username}'s referral code`)
+        }
+        await this.userService.create(user)
       }
 
-      const user: CreateUserDto = {
-        coins: 0,
-        username: username,
-        telegramUserId: userId,
-      }
-
-      if (referralCode) {
-
-        user.refereeId = referralCode
-
-        const refereeUser = await this.userService.findOneByTelegramUserId(referralCode)
-
-        this.userService.updateByTelegramId(referralCode, { referralToAdd: userId })
-
-        this.sendMessage(chatId, `You have joined using ${refereeUser?.username}'s referral code`)
-      }
-
-      await this.userService.create(user)
+      // Send welcome message as the final operation for all /start command invocations
+      this.bot.sendMessage(chatId, welcomeMessage, options)
+        .then(() => {
+          console.log(`Sent welcome message with inline keyboard to chat ID: ${chatId} for /start command`);
+        })
+        .catch((error: Error) => {
+          console.error(`Error sending message to ${chatId}:`, error.message);
+        });
     });
 
     this.bot.onText(/\/refer/, (msg) => {
@@ -147,28 +139,46 @@ You win -> take your cash 🚀`;
     })
 
     this.bot.on("callback_query", async (callbackQuery) => {
-      const userId = callbackQuery.from.id
-      const inlineMessageId = callbackQuery.inline_message_id ?? ''
-      const username = callbackQuery.from.username
-      const name = callbackQuery.from.first_name
-      const chatId = callbackQuery.message?.chat.id
-      let groupOwnerId: number | undefined
+      if (callbackQuery.data === 'request_referral_link') {
+        const chatId = callbackQuery.message?.chat.id;
+        const userId = callbackQuery.from.id;
+
+        if (chatId) {
+          const message = `Here's your referral link: https://t.me/rpstestinggroundsbot?start=${userId}`;
+          this.bot.sendMessage(chatId, message);
+          this.bot.answerCallbackQuery(callbackQuery.id); // Acknowledge
+          return; // Handled, no further processing needed for this callback type
+        } else {
+          this.logger.warn(`ChatId not available for callback_query 'request_referral_link' from user ${userId}`);
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: "Error: Could not process referral request." });
+          return; // Handled
+        }
+      }
+
+      // Existing game-related callback logic starts here
+      // (It will only be reached if callbackQuery.data is not 'request_referral_link')
+      const userId = callbackQuery.from.id;
+      const inlineMessageId = callbackQuery.inline_message_id ?? '';
+      const username = callbackQuery.from.username;
+      const name = callbackQuery.from.first_name;
+      const chatId = callbackQuery.message?.chat.id;
+      let groupOwnerId: number | undefined;
 
       try {
         if (chatId) {
-          const admins = await this.bot.getChatAdministrators(chatId)
-          const groupOwner = admins.find(admin => admin.status === 'creator')
-          groupOwnerId = groupOwner?.user.id
-          this.logger.log(admins)
+          const admins = await this.bot.getChatAdministrators(chatId);
+          const groupOwner = admins.find(admin => admin.status === 'creator');
+          groupOwnerId = groupOwner?.user.id;
+          this.logger.log(admins);
         }
       } catch (e) {
-        this.logger.log(`group not found for ${chatId}`)
+        this.logger.log(`group not found for ${chatId}`);
       }
 
-      let query = `username=${username}&userId=${userId}&inlineMessageId=${inlineMessageId}&name=${name}`
+      let query = `username=${username}&userId=${userId}&inlineMessageId=${inlineMessageId}&name=${name}`;
 
       if (groupOwnerId) {
-        query += `&owner=${groupOwnerId}`
+        query += `&owner=${groupOwnerId}`;
       }
 
       this.bot.answerCallbackQuery(callbackQuery.id, {
