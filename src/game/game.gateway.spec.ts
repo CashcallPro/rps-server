@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { GameGateway } from './game.gateway';
 import { UsersService } from '../users/users.service';
 import { AdminService } from '../admin/admin.service';
+import { RevshareService } from '../revshare/revshare.service'; // Added
 import { RedisService } from '../redis/redis.provider';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
@@ -36,6 +37,7 @@ describe('GameGateway', () => {
   let gateway: GameGateway;
   let usersService: UsersService;
   let adminService: AdminService;
+  let revshareService: RevshareService; // Added
   // let redisService: RedisService; // Mocked but not directly used in these specific tests yet
   // let configService: ConfigService; // Mocked but not directly used in these specific tests yet
 
@@ -51,6 +53,10 @@ describe('GameGateway', () => {
 
   const mockAdminService = {
     updateAdminCoins: jest.fn(),
+  };
+
+  const mockRevshareService = { // Added
+    findRequestByTelegramUserId: jest.fn(),
   };
 
   const mockRedisService = {
@@ -79,6 +85,7 @@ describe('GameGateway', () => {
         GameGateway,
         { provide: UsersService, useValue: mockUsersService },
         { provide: AdminService, useValue: mockAdminService },
+        { provide: RevshareService, useValue: mockRevshareService }, // Added
         { provide: RedisService, useValue: mockRedisService },
         { provide: ConfigService, useValue: mockConfigService },
       ],
@@ -87,6 +94,7 @@ describe('GameGateway', () => {
     gateway = module.get<GameGateway>(GameGateway);
     usersService = module.get<UsersService>(UsersService);
     adminService = module.get<AdminService>(AdminService);
+    revshareService = module.get<RevshareService>(RevshareService); // Added
     // redisService = module.get<RedisService>(RedisService);
     // configService = module.get<ConfigService>(ConfigService);
 
@@ -347,5 +355,147 @@ describe('GameGateway', () => {
             expect(usersService.addCoins).toHaveBeenCalledWith(username, GROUP_OWNER_BONUS_PER_OWNER);
         }
     });
+  });
+
+  describe('handleStart - Group Owner Logic', () => {
+    const mockClientSocket = { id: 'client1Socket', emit: jest.fn() };
+    const mockClientSocket2 = { id: 'client2Socket', emit: jest.fn() };
+
+    beforeEach(() => {
+      // Mock userService.create to return a user with enough coins by default
+      (mockUsersService.create as jest.Mock).mockImplementation((dto: { username: string, telegramUserId: string }) =>
+        Promise.resolve({
+          username: dto.username,
+          telegramUserId: dto.telegramUserId,
+          coins: ROUND_BET_AMOUNT * 2 // Ensure enough coins
+        })
+      );
+      (mockRedisService.set as jest.Mock).mockResolvedValue('OK');
+      // Reset matchmaking queue and other relevant states if necessary
+      gateway['matchmakingQueue'] = [];
+      gateway['socketToSessionMap'] = new Map();
+      gateway['matchmakingBotTimers'] = new Map();
+
+    });
+
+    const callHandleStart = async (playerData: { username: string, userId: string, groupOwner?: number }, clientSocket: any) => {
+      await gateway.handleStart(playerData, clientSocket as any);
+    };
+
+    it('Test Case 1: Player 1 group owner approved', async () => {
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockResolvedValue({ status: 'approved' });
+
+      await callHandleStart({ username: 'p1', userId: 'u1', groupOwner: 123 }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2' }, mockClientSocket2); // Player 2 to start the game
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      expect(sessionData.groupOwners).toContain(123);
+    });
+
+    it('Test Case 2: Player 1 group owner pending', async () => {
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockResolvedValue({ status: 'pending' });
+
+      await callHandleStart({ username: 'p1', userId: 'u1', groupOwner: 123 }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2' }, mockClientSocket2);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      expect(sessionData.groupOwners).not.toContain(123);
+    });
+
+    it('Test Case 3: Player 1 group owner not found', async () => {
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockResolvedValue(null);
+
+      await callHandleStart({ username: 'p1', userId: 'u1', groupOwner: 123 }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2' }, mockClientSocket2);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      expect(sessionData.groupOwners).not.toContain(123);
+    });
+
+    it('Test Case 4: Player 2 group owner approved', async () => {
+      // Player 1 has no group owner, Player 2 has an approved one
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockImplementation(async (tgId) => {
+        if (tgId === '456') return { status: 'approved' };
+        return null;
+      });
+
+      await callHandleStart({ username: 'p1', userId: 'u1' }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2', groupOwner: 456 }, mockClientSocket2);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      expect(sessionData.groupOwners).toContain(456);
+      expect(sessionData.groupOwners.length).toBe(1);
+    });
+
+    it('Test Case 5: Both players group owners approved', async () => {
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockImplementation(async (tgId) => {
+        if (tgId === '123' || tgId === '456') return { status: 'approved' };
+        return null;
+      });
+
+      await callHandleStart({ username: 'p1', userId: 'u1', groupOwner: 123 }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2', groupOwner: 456 }, mockClientSocket2);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      expect(sessionData.groupOwners).toContain(123);
+      expect(sessionData.groupOwners).toContain(456);
+      expect(sessionData.groupOwners.length).toBe(2);
+    });
+
+    it('Test Case 6: P1 owner approved, P2 owner not (e.g. pending)', async () => {
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockImplementation(async (tgId) => {
+        if (tgId === '123') return { status: 'approved' };
+        if (tgId === '456') return { status: 'pending' };
+        return null;
+      });
+
+      await callHandleStart({ username: 'p1', userId: 'u1', groupOwner: 123 }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2', groupOwner: 456 }, mockClientSocket2);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      expect(sessionData.groupOwners).toContain(123);
+      expect(sessionData.groupOwners).not.toContain(456);
+      expect(sessionData.groupOwners.length).toBe(1);
+    });
+
+    it('Test Case 7: No group owners provided by either player', async () => {
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockResolvedValue(null); // Should not be called ideally
+
+      await callHandleStart({ username: 'p1', userId: 'u1' }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2' }, mockClientSocket2);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      // Check if groupOwners is empty or not defined (based on implementation, it should be an empty array if no owners are added)
+      expect(sessionData.groupOwners).toBeDefined();
+      expect(sessionData.groupOwners.length).toBe(0);
+      expect(mockRevshareService.findRequestByTelegramUserId).not.toHaveBeenCalled();
+    });
+
+     it('Error during revshare check for P1 owner, P2 owner approved', async () => {
+      (mockRevshareService.findRequestByTelegramUserId as jest.Mock).mockImplementation(async (tgId) => {
+        if (tgId === '123') throw new Error("Revshare service error");
+        if (tgId === '456') return { status: 'approved' };
+        return null;
+      });
+      jest.spyOn(gateway['logger'], 'error'); // Spy on logger.error
+
+      await callHandleStart({ username: 'p1', userId: 'u1', groupOwner: 123 }, mockClientSocket);
+      await callHandleStart({ username: 'p2', userId: 'u2', groupOwner: 456 }, mockClientSocket2);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      const sessionData: SessionData = JSON.parse((mockRedisService.set as jest.Mock).mock.calls[0][1]);
+      expect(sessionData.groupOwners).not.toContain(123);
+      expect(sessionData.groupOwners).toContain(456);
+      expect(sessionData.groupOwners.length).toBe(1);
+      expect(gateway['logger'].error).toHaveBeenCalledWith(expect.stringContaining('Error checking revshare status for group owner 123'), expect.any(String));
+    });
+
   });
 });
