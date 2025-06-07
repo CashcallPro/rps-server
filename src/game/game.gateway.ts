@@ -16,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { UsersService } from 'src/users/users.service';
 import { AdminService } from 'src/admin/admin.service';
 import { BotService } from 'src/bot/bot.service';
+import { RevshareService } from 'src/revshare/revshare.service';
 
 type Choice = 'rock' | 'paper' | 'scissors';
 
@@ -69,6 +70,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     private userService: UsersService,
     private adminService: AdminService,
     private botService: BotService,
+    private readonly revshareService: RevshareService,
   ) {
     const configuredTurnTimeout = this.configService.get<string>('TURN_TIMEOUT_DURATION_MS');
     if (!configuredTurnTimeout) {
@@ -472,14 +474,34 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const player1 = this.matchmakingQueue.shift()!;
       const player2 = this.matchmakingQueue.shift()!;
 
-      const groupOwners: number[] = []
+      const groupOwners: number[] = [];
 
       if (player1.groupOwner) {
-        groupOwners.push(player1.groupOwner)
+        try {
+          const request = await this.revshareService.findRequestByTelegramUserId(player1.groupOwner.toString());
+          if (request && request.status === 'approved') {
+            groupOwners.push(player1.groupOwner);
+            this.logger.log(`Added group owner ${player1.groupOwner} for player ${player1.username} to session. Status: approved.`);
+          } else {
+            this.logger.log(`Skipped adding group owner ${player1.groupOwner} for player ${player1.username}. Status: ${request ? request.status : 'not found'}.`);
+          }
+        } catch (error) {
+          this.logger.error(`Error checking revshare status for group owner ${player1.groupOwner} of player ${player1.username}: ${error.message}`);
+        }
       }
 
       if (player2.groupOwner) {
-        groupOwners.push(player2.groupOwner)
+        try {
+          const request = await this.revshareService.findRequestByTelegramUserId(player2.groupOwner.toString());
+          if (request && request.status === 'approved') {
+            groupOwners.push(player2.groupOwner);
+            this.logger.log(`Added group owner ${player2.groupOwner} for player ${player2.username} to session. Status: approved.`);
+          } else {
+            this.logger.log(`Skipped adding group owner ${player2.groupOwner} for player ${player2.username}. Status: ${request ? request.status : 'not found'}.`);
+          }
+        } catch (error) {
+          this.logger.error(`Error checking revshare status for group owner ${player2.groupOwner} of player ${player2.username}: ${error.message}`);
+        }
       }
 
       const initialScores: Score = {
