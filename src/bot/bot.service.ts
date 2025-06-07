@@ -88,10 +88,15 @@ You win -> take your cash 🚀`;
               { text: '👋 Join Channel', url: 'https://t.me/rps_titans' } // Replace with actual URL
             ],
             [
-              { text: '🎁 Referral', callback_data: 'request_referral_link' } 
+              { text: '🎁 Referral', callback_data: 'request_referral_link' }
             ],
             [
-              { text: '💵 Earn More!', url: 'https://t.me/your_channel_username' } // TODO: this button would tell him the how to become group admin and earn revenue-share 
+              { text: '💵 Earn More!', callback_data: 'earn_more_options' } 
+            ],
+            [ // New row for language buttons
+              { text: '🇷🇺 Russian', url: 'https://t.me/rpstitans/2' },
+              { text: '🇮🇷 Persian', url: 'https://t.me/rpstitans/3' },
+              { text: '🇹🇷 Turkish', url: 'https://t.me/rpstitans/4' }
             ]
           ]
         }
@@ -153,10 +158,31 @@ You win -> take your cash 🚀`;
           this.bot.answerCallbackQuery(callbackQuery.id, { text: "Error: Could not process referral request." });
           return; // Handled
         }
+      } else if (callbackQuery.data === 'earn_more_options') {
+        const chatId = callbackQuery.message?.chat.id;
+        if (chatId) {
+          const messageText = "Become a partner! a tutorial text";
+          const messageOptions: TelegramBot.SendMessageOptions = {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: 'Yes', callback_data: 'partner_yes' },
+                  { text: 'No', callback_data: 'partner_no' }
+                ]
+              ]
+            }
+          };
+          this.bot.sendMessage(chatId, messageText, messageOptions);
+          this.bot.answerCallbackQuery(callbackQuery.id); // Acknowledge the 'Earn More' button press
+        } else {
+          this.logger.warn(`ChatId not available for callback_query 'earn_more_options' from user ${callbackQuery.from.id}`);
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: "Error: Could not process request." });
+        }
+        return; // Handled
       }
 
       // Existing game-related callback logic starts here
-      // (It will only be reached if callbackQuery.data is not 'request_referral_link')
+      // (It will only be reached if callbackQuery.data is not handled above)
       const userId = callbackQuery.from.id;
       const inlineMessageId = callbackQuery.inline_message_id ?? '';
       const username = callbackQuery.from.username;
