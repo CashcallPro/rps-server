@@ -161,7 +161,21 @@ You win -> take your cash 🚀`;
       } else if (callbackQuery.data === 'earn_more_options') {
         const chatId = callbackQuery.message?.chat.id;
         if (chatId) {
-          const messageText = "Become a partner! a tutorial text";
+          const messageText: string = `What is Rev-Share in RPS Titans?
+
+Rev-share means you earn a share of the game’s revenue when people play in your Telegram group.
+
+📌 Here’s how it works:
+
+You add the RPS Titans bot to your group.
+
+When players play games in your group, the bot collects a small fee.
+
+You earn a percentage of that fee — automatically.
+
+It’s like getting paid every time someone plays! 🎯
+No extra work needed. Just invite the bot and let the games begin. 
+🚀 Ready to earn from your group’s activity? `;
           const messageOptions: TelegramBot.SendMessageOptions = {
             reply_markup: {
               inline_keyboard: [
