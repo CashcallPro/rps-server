@@ -13,6 +13,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CompletedGame, CompletedGameSchema } from './game/schema/completed-game.schema';
 import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module'; // <-- Add this import
+import { RevshareModule } from './revshare/revshare.module';
 
 @Module({
   imports: [
@@ -34,7 +35,8 @@ import { AdminModule } from './admin/admin.module'; // <-- Add this import
     GameModule,
     BotModule,
     UsersModule,
-    AdminModule, // <-- Add AdminModule here
+    AdminModule,
+    RevshareModule,
   ],
   controllers: [AppController],
   providers: [AppService, RedisService, GameGateway],
