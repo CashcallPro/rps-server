@@ -3,18 +3,21 @@ import { ConfigService } from '@nestjs/config';
 import * as TelegramBot from 'node-telegram-bot-api'; // Use * as import
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
+import { RevshareService } from '../revshare/revshare.service';
 
 @Injectable()
 export class BotService implements OnModuleInit {
   private readonly logger = new Logger(BotService.name);
   private bot: TelegramBot;
+  private botInstanceId: number; // Added
   private readonly botToken: string | undefined;
   private readonly gameShortName: string | undefined;
   private readonly telegramGameUrl: string | undefined;
 
   constructor(
     private configService: ConfigService,
-    private readonly userService: UsersService
+    private readonly userService: UsersService,
+    private readonly revshareService: RevshareService,
   ) {
 
     this.botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
@@ -32,8 +35,17 @@ export class BotService implements OnModuleInit {
     }
   }
 
-  onModuleInit() {
+  async onModuleInit() { // Made async
     this.initializeBot();
+    try {
+      const me = await this.bot.getMe();
+      this.botInstanceId = me.id;
+      this.logger.log(`Bot ID: ${this.botInstanceId} (${me.username}) successfully fetched and stored.`);
+    } catch (err) {
+      this.logger.error('CRITICAL: Failed to get bot ME details. Bot may not function correctly for group add events.', err);
+      // Depending on strictness, you might throw an error here to stop initialization
+      // throw new Error('Failed to initialize bot (getMe failed)');
+    }
     this.logger.log('BotService initialized.');
   }
 
@@ -195,6 +207,37 @@ No extra work needed. Just invite the bot and let the games begin.
         return; // Handled
       }
 
+      else if (callbackQuery.data === 'partner_yes') {
+        const chatId = callbackQuery.message?.chat.id;
+        const telegramUserId = callbackQuery.from.id.toString();
+
+        if (chatId) {
+          try {
+            const existingRequest = await this.revshareService.findRequestByTelegramUserId(telegramUserId);
+            if (existingRequest) {
+              this.bot.sendMessage(chatId, 'Your request to join the revenue share program is being processed, please be patient.');
+            } else {
+              await this.revshareService.createRequest(telegramUserId, undefined, undefined, 'Initial request from partner_yes');
+              const instructions = `Awesome! 🎉 Now take the steps below to become a rev-share partner:
+
+1. ➕ Add this bot to your Telegram group.
+2. 📎 Send the @handle of your group here in this chat.
+
+Once you do that, we’ll activate revenue share for your group automatically. 🚀`;
+              this.bot.sendMessage(chatId, instructions);
+            }
+            this.bot.answerCallbackQuery(callbackQuery.id);
+          } catch (error) {
+            this.logger.error(`Error processing 'partner_yes' for user ${telegramUserId}:`, error);
+            this.bot.answerCallbackQuery(callbackQuery.id, { text: 'An error occurred. Please try again.' });
+          }
+        } else {
+          this.logger.warn(`ChatId not available for callback_query 'partner_yes' from user ${telegramUserId}`);
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: "Error: Could not process request." });
+        }
+        return; // Handled
+      }
+
       // Existing game-related callback logic starts here
       // (It will only be reached if callbackQuery.data is not handled above)
       const userId = callbackQuery.from.id;
@@ -226,11 +269,95 @@ No extra work needed. Just invite the bot and let the games begin.
       });
     });
 
-    this.bot.on('message', (msg) => {
+    this.bot.on('message', async (msg) => { // Add async here
       const chatId = msg.chat.id;
-      console.log({ chatId })
-      // send a message to the chat acknowledging receipt of their message
-      // this.bot.sendMessage(chatId, 'Received your message');
+      const telegramUserId = msg.from?.id.toString();
+      const text = msg.text;
+
+      // --- Start of new logic for bot added to group ---
+      if (msg.new_chat_members && msg.new_chat_members.length > 0) {
+        const botWasAdded = msg.new_chat_members.some(member => member.id === this.botInstanceId && member.is_bot);
+
+        if (botWasAdded) {
+          const adderUserId = msg.from?.id.toString(); // User who added the bot
+          const groupId = msg.chat.id.toString();
+          const groupTitle = msg.chat.title; // For logging
+
+          if (adderUserId) {
+            this.logger.log(`Bot was added to group '${groupTitle}' (ID: ${groupId}) by user ${adderUserId}.`);
+            try {
+              const request = await this.revshareService.findRequestByTelegramUserId(adderUserId);
+              if (request && request.status === 'pending' && !request.groupId) {
+                await this.revshareService.updateRequest(adderUserId, {
+                  groupId: groupId,
+                  message: `Bot added to group: ${groupTitle} (${groupId}) by ${adderUserId}`
+                });
+                this.logger.log(`Revshare request for ${adderUserId} updated with groupId ${groupId}.`);
+                // No message to user is specified, just update the record.
+                return; // Message handled
+              } else if (request && request.status === 'pending' && request.groupId) {
+                this.logger.log(`Revshare request for ${adderUserId} already has groupId ${request.groupId}. No update needed for group ${groupId}.`);
+              } else if (!request) {
+                this.logger.log(`No pending revshare request found for user ${adderUserId} who added bot to group ${groupId}.`);
+              } else {
+                this.logger.log(`Revshare request for ${adderUserId} is not in a state to be updated with groupId (status: ${request.status}).`);
+              }
+            } catch (error) {
+              this.logger.error(`Error updating revshare request with groupId for user ${adderUserId} and group ${groupId}:`, error);
+            }
+          } else {
+            this.logger.warn(`Bot added to group ${groupId} (${groupTitle}), but could not identify the user who added it.`);
+          }
+          // Even if other conditions inside 'botWasAdded' are not met,
+          // if the bot was indeed added, we might want to return to avoid processing as a regular text message.
+          // However, if the adder is not identifiable, or no request, it might fall through.
+          // For now, if botWasAdded is true, we assume its purpose is handled or logged.
+          return;
+        }
+      }
+      // --- End of new logic ---
+
+
+      // Ensure telegramUserId and text are available (text might not be present for group add messages)
+      if (!telegramUserId) {
+        // this.logger.log('Message without user ID received.'); // Already logged if bot was added without adder ID
+        return;
+      }
+
+      if (text && text.startsWith('@')) { // Now check if text exists
+        try {
+          const request = await this.revshareService.findRequestByTelegramUserId(telegramUserId);
+
+          // Check if there's a pending request that is awaiting a group handle
+          if (request && request.status === 'pending' && !request.groupHandle) {
+            await this.revshareService.updateRequest(telegramUserId, {
+              groupHandle: text,
+              message: `Group handle submitted: ${text}` // Updated message field
+            });
+
+            const confirmationMessage = `Perfect! ✅
+
+Your rev-share request will be reviewed soon and you’ll be informed here.
+
+Please be patient — we’re receiving a high volume of requests from group admins. 🙏
+Thanks for joining the RPS Titans partner network! 💪`;
+            this.bot.sendMessage(chatId, confirmationMessage);
+            this.logger.log(`Group handle '${text}' submitted by ${telegramUserId} and request updated.`);
+            return; // Handled as group handle submission
+          } else {
+            // Log if it starts with @ but doesn't match criteria (e.g., no pending request, or handle already submitted)
+            this.logger.log(`Received message starting with @ from ${telegramUserId}, but not a valid pending group handle submission: ${text}`);
+          }
+        } catch (error) {
+          this.logger.error(`Error processing potential group handle for user ${telegramUserId}:`, error);
+          // Optionally, send an error message to the user
+          // this.bot.sendMessage(chatId, 'There was an error processing your message. Please try again.');
+        }
+      } else {
+        // Existing console.log or other general message handling can go here
+        this.logger.log(`Received non-handle message from ${telegramUserId} in chat ${chatId}: ${text}`);
+        // this.bot.sendMessage(chatId, 'Received your message'); // Keep this commented or remove if not needed
+      }
     });
 
     this.bot.on('inline_query', (query) => {
