@@ -102,8 +102,3 @@ Thanks for partnering with RPS Titans! 💪`,
   MATCH_ALREADY_RECORDED: (sessionId: string, username: string) => `Match with sessionId '${sessionId}' already recorded for user '${username}'.`,
   COULD_NOT_RECORD_MATCH: 'Could not record the match.',
 };
-
-Your rev-share request is now under review, and we'll inform you of the outcome here. We appreciate your patience as we're experiencing a high volume of requests.
-
-Thanks for partnering with RPS Titans! 💪`,
-};

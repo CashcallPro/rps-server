@@ -152,8 +152,8 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     sessionId: string,
     player1SocketId: string, player1Choice: Choice | null, // Renamed for clarity
     player2SocketId: string, player2Choice: Choice | null, // Renamed for clarity
-    reasonPlayer1?: string,
-    reasonPlayer2?: string,
+    reasonPlayer1: string,
+    reasonPlayer2: string,
     isBotRound?: boolean,
   ) {
     const player1Info = sessionData.players.find(p => p.socketId === player1SocketId);
@@ -721,7 +721,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
         client.emit('choice_registered', { message: messagesEn.CHOICE_REGISTERED_BOT_MOVING });
         setTimeout(async () => {
-          await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, botChoice);
+          await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, botChoice, '', '');
         }, 500);
 
       } else {
@@ -772,7 +772,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             // Or halt. For now, let it proceed.
           }
 
-          await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, opponentChoice);
+          await this.processRoundCompletion(sessionData, sessionId, currentPlayerId, choice, opponentId, opponentChoice, '', '');
         } else {
           client.emit('choice_registered', { message: messagesEn.CHOICE_REGISTERED_WAITING_OPPONENT });
           this.server.to(opponentId).emit('opponent_made_choice', {
@@ -937,7 +937,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
           if (opponent && !opponent.socketId.startsWith(this.BOT_ID_PREFIX)) {
             this.server.to(opponent.socketId).emit('opponent_disconnected', {
-              message: messagesEn.OPPONENT_DISCONNECTED(disconnectedPlayer?.username),
+              message: messagesEn.OPPONENT_DISCONNECTED(disconnectedPlayer?.username ?? 'username not found'),
             });
             this.logger.log(`Notified opponent ${opponent.username} in session ${sessionId} about ${disconnectedPlayer?.username}'s disconnection.`);
           } else if (opponent && opponent.socketId.startsWith(this.BOT_ID_PREFIX)) {
