@@ -35,7 +35,7 @@ import { RevshareModule } from './revshare/revshare.module';
     GameModule,
     BotModule,
     UsersModule,
-    AdminModule, // <-- Add AdminModule here
+    AdminModule,
     RevshareModule,
   ],
   controllers: [AppController],

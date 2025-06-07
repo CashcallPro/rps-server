@@ -1,9 +1,10 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as TelegramBot from 'node-telegram-bot-api'; // Use * as import
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
 import { RevshareService } from '../revshare/revshare.service';
+import { Revshare } from 'src/revshare/schemas/revshare.schema';
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -103,7 +104,7 @@ You win -> take your cash 🚀`;
               { text: '🎁 Referral', callback_data: 'request_referral_link' }
             ],
             [
-              { text: '💵 Earn More!', callback_data: 'earn_more_options' } 
+              { text: '💵 Earn More!', callback_data: 'earn_more_options' }
             ],
             [ // New row for language buttons
               { text: '🇷🇺 Russian', url: 'https://t.me/rpstitans/2' },

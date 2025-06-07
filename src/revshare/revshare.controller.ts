@@ -1,4 +1,4 @@
-import { Controller, Get, Logger, UseGuards, Patch, Param, HttpCode, HttpStatus } from '@nestjs/common'; // Added UseGuards, Patch, Param, HttpCode, HttpStatus
+import { Controller, Get, Logger, UseGuards, Patch, Param, HttpCode, HttpStatus, Inject, forwardRef } from '@nestjs/common'; // Added UseGuards, Patch, Param, HttpCode, HttpStatus
 import { RevshareService } from './revshare.service';
 import { Revshare } from './schemas/revshare.schema';
 import { BotService } from '../bot/bot.service'; // Added BotService import
@@ -12,8 +12,8 @@ export class RevshareController {
 
   constructor(
     private readonly revshareService: RevshareService,
-    private readonly botService: BotService, // Injected BotService
-  ) {}
+    private readonly botService: BotService,
+  ) { }
 
   // Example: Get all requests (potentially for an admin dashboard)
   // Consider adding authentication/authorization guards here
