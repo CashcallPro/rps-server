@@ -218,12 +218,13 @@ No extra work needed. Just invite the bot and let the games begin.
               this.bot.sendMessage(chatId, 'Your request to join the revenue share program is being processed, please be patient.');
             } else {
               await this.revshareService.createRequest(telegramUserId, undefined, undefined, 'Initial request from partner_yes');
-              const instructions = `Awesome! 🎉 Now take the steps below to become a rev-share partner:
+              const instructions = `Awesome! 🎉 To become a rev-share partner:
 
 1. ➕ Add this bot to your Telegram group.
-2. 📎 Send the @handle of your group here in this chat.
 
-Once you do that, we’ll activate revenue share for your group automatically. 🚀`;
+Once you do that, we’ll automatically detect your group and process your request. Please note: Revenue share is currently supported for public groups (those with a Telegram @username).
+
+We’ll notify you here once your request is reviewed. 🚀`;
               this.bot.sendMessage(chatId, instructions);
             }
             this.bot.answerCallbackQuery(callbackQuery.id);
@@ -312,7 +313,21 @@ Once you do that, we’ll activate revenue share for your group automatically. �
 
                 await this.revshareService.updateRequest(adderUserId, updateData);
                 this.logger.log(`Revshare request for ${adderUserId} updated with groupId ${groupId}` + (chatUsername ? ` and groupUsername '${chatUsername}'` : '') + `.`);
-                // No message to user is specified, just update the record.
+
+                // Now send confirmation to the user who added the bot
+                try {
+                  const finalMessageToUser = `Great news! RPS Titans bot has been successfully added to your group: '${groupTitle || 'Unnamed Group'}'.
+
+Your rev-share request is now under review, and we'll inform you of the outcome here. We appreciate your patience as we're experiencing a high volume of requests.
+
+Thanks for partnering with RPS Titans! 💪`;
+                  await this.sendMessage(adderUserId, finalMessageToUser);
+                  this.logger.log(`"Bot added to group" confirmation sent to user ${adderUserId}.`);
+                } catch (messageError) {
+                  this.logger.error(`Failed to send "Bot added to group" confirmation to user ${adderUserId}: ${messageError.message}`, messageError.stack);
+                  // Do not rethrow, the main operation (DB update) was successful.
+                }
+
                 return; // Message handled
               } else if (request && request.status === 'pending') {
                 // Log why no update happened if it was pending
@@ -343,58 +358,29 @@ Once you do that, we’ll activate revenue share for your group automatically. �
       // --- End of new logic ---
 
 
-      // Ensure telegramUserId and text are available (text might not be present for group add messages)
+      // Ensure telegramUserId is available. Note: `text` might be undefined for some message types
+      // (e.g., when a user joins a group, there's no `msg.text`).
+      // The "bot added to group" logic above handles messages where `msg.new_chat_members` is present.
+      // Other message types that are not simple text messages might also not have `msg.text`.
       if (!telegramUserId) {
-        // this.logger.log('Message without user ID received.'); // Already logged if bot was added without adder ID
+        this.logger.log('Message received without a `from.id` (telegramUserId). Skipping further processing in this handler.');
         return;
       }
 
-      if (text && text.startsWith('@')) { // Now check if text exists
-        try {
-          const request = await this.revshareService.findRequestByTelegramUserId(telegramUserId);
-
-          // Update if there's a pending request and groupUsername hasn't been set yet.
-          if (request && request.status === 'pending' && !request.groupUsername) {
-            const rawGroupHandle = text;
-            const processedGroupUsername = text.substring(1); // Remove '@'
-
-            await this.revshareService.updateRequest(telegramUserId, {
-              groupHandle: rawGroupHandle, // Store raw input like "@mygroup"
-              groupUsername: processedGroupUsername, // Store "mygroup"
-              message: `Group username submitted: ${processedGroupUsername} (raw: ${rawGroupHandle})`
-            });
-
-            const confirmationMessage = `Perfect! ✅
-
-Your rev-share request will be reviewed soon and you’ll be informed here.
-
-Please be patient — we’re receiving a high volume of requests from group admins. 🙏
-Thanks for joining the RPS Titans partner network! 💪`;
-            this.bot.sendMessage(chatId, confirmationMessage);
-            this.logger.log(`Group handle '${rawGroupHandle}' (username: '${processedGroupUsername}') submitted by ${telegramUserId} and request updated.`);
-            return; // Handled as group handle submission
-          } else if (request && request.status === 'pending' && request.groupUsername) {
-            // User might be re-submitting or submitted a different handle.
-            // For now, we log and don't send a message to avoid clutter if they are just correcting a typo quickly.
-            this.logger.log(`User ${telegramUserId} tried to submit group handle '${text}', but groupUsername '${request.groupUsername}' already exists.`);
-            // Optionally, inform the user:
-            // this.bot.sendMessage(chatId, "You've already submitted a group username. If you need to change it, please contact support.");
-            return; // Still handled, even if it's a re-submission.
-          }
-           else {
-            // Log if it starts with @ but doesn't match criteria (e.g., no pending request, or request not pending)
-            this.logger.log(`Received message starting with @ from ${telegramUserId} (${text}), but not a valid pending group username submission (Status: ${request?.status}, GroupUserame: ${request?.groupUsername}).`);
-          }
-        } catch (error) {
-          this.logger.error(`Error processing group handle message for user ${telegramUserId}:`, error);
-          // Optionally, send an error message to the user
-          // this.bot.sendMessage(chatId, 'There was an error processing your message. Please try again.');
-        }
-      } else {
-        // Existing console.log or other general message handling can go here
-        this.logger.log(`Received non-handle message from ${telegramUserId} in chat ${chatId}: ${text}`);
-        // this.bot.sendMessage(chatId, 'Received your message'); // Keep this commented or remove if not needed
+      // If 'text' is not defined (e.g. for photo, sticker, user joining/leaving messages etc.),
+      // and it wasn't handled by the "bot added to group" logic, then there's nothing more for this handler to do.
+      if (typeof text === 'undefined') {
+        // this.logger.log(`Received message of non-text type from ${telegramUserId} in chat ${chatId}. No text to process for @handle or other commands.`);
+        return;
       }
+
+      // At this point, telegramUserId and text are defined.
+      // Any other specific command or text processing can go here.
+      // For example, if you had other commands like /mygroupinfo etc.
+
+      // Fallback logging for any text messages not handled by specific logic above.
+      this.logger.log(`Received unhandled text message from ${telegramUserId} in chat ${chatId}: ${text}`);
+      // this.bot.sendMessage(chatId, 'Received your message'); // Original placeholder, remove if not needed
     });
 
     this.bot.on('inline_query', (query) => {
