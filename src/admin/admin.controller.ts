@@ -1,6 +1,7 @@
 import { Controller, Get, Patch, Body, Logger } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminDocument } from './schemas/admin.schema';
+import { messagesEn } from 'src/i18n/en';
 
 @Controller('admin')
 export class AdminController {
@@ -21,7 +22,7 @@ export class AdminController {
     const { amount } = body;
     this.logger.log(`Received request to adjust admin coins by: ${amount}`);
     if (typeof amount !== 'number') {
-        throw new Error('Amount must be a number');
+        throw new Error(messagesEn.AMOUNT_MUST_BE_NUMBER);
     }
     return this.adminService.updateAdminCoins(amount);
   }

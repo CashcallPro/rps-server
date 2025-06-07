@@ -5,6 +5,7 @@ import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
 import { RevshareService } from '../revshare/revshare.service';
 import { Revshare } from 'src/revshare/schemas/revshare.schema';
+import { messagesEn } from 'src/i18n/en';
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -84,11 +85,7 @@ export class BotService implements OnModuleInit {
 
       this.logger.log(`Received /start command from ${username} (ID: ${userId}) referralCode: ${referralCode}`);
 
-      const welcomeMessage: string = `Welcome to PRS Titans Online Multiplayer Game!
-
-PRS Titans is the first Win2Earn real-time multiplayer online game on TON blockchain
-
-You win -> take your cash 🚀`;
+      const welcomeMessage: string = messagesEn.WELCOME_MESSAGE;
 
       const options: TelegramBot.SendMessageOptions = {
         // You can use 'HTML' or 'MarkdownV2' for text formatting
@@ -98,31 +95,31 @@ You win -> take your cash 🚀`;
           inline_keyboard: [
             // Each array within inline_keyboard represents a row of buttons
             [
-              { text: '👋 Join Channel', url: 'https://t.me/rps_titans' } // Replace with actual URL
+              { text: messagesEn.JOIN_CHANNEL_BUTTON, url: 'https://t.me/rps_titans' } // Replace with actual URL
             ],
             [
-              { text: '🎁 Referral', callback_data: 'request_referral_link' }
+              { text: messagesEn.REFERRAL_BUTTON, callback_data: 'request_referral_link' }
             ],
             [
-              { text: '💵 Earn More!', callback_data: 'earn_more_options' }
+              { text: messagesEn.EARN_MORE_BUTTON, callback_data: 'earn_more_options' }
             ],
             [ // New row for language buttons
-              { text: '🇷🇺 Russian', url: 'https://t.me/rpstitans/2' },
-              { text: '🇮🇷 Persian', url: 'https://t.me/rpstitans/3' },
-              { text: '🇹🇷 Turkish', url: 'https://t.me/rpstitans/4' }
+              { text: messagesEn.RUSSIAN_BUTTON, url: 'https://t.me/rpstitans/2' },
+              { text: messagesEn.PERSIAN_BUTTON, url: 'https://t.me/rpstitans/3' },
+              { text: messagesEn.TURKISH_BUTTON, url: 'https://t.me/rpstitans/4' }
             ]
           ]
         }
       };
 
       if (referralCode == userId) {
-        this.sendMessage(chatId, 'You can\'t refer yourself')
+        this.sendMessage(chatId, messagesEn.CANT_REFER_SELF);
       }
 
       const userExists = await this.userService.findOneByTelegramUserId(userId)
 
       if (userExists) {
-        this.sendMessage(chatId, "You have already joined!")
+        this.sendMessage(chatId, messagesEn.ALREADY_JOINED);
         // Welcome message will be sent after this block
       } else {
         // Create user only if they don't exist
@@ -136,7 +133,7 @@ You win -> take your cash 🚀`;
           user.refereeId = referralCode
           const refereeUser = await this.userService.findOneByTelegramUserId(referralCode)
           this.userService.updateByTelegramId(referralCode, { referralToAdd: userId })
-          this.sendMessage(chatId, `You have joined using ${refereeUser?.username}'s referral code`)
+          this.sendMessage(chatId, messagesEn.JOINED_WITH_REFERRAL(refereeUser?.username || ''));
         }
         await this.userService.create(user)
       }
@@ -152,8 +149,8 @@ You win -> take your cash 🚀`;
     });
 
     this.bot.onText(/\/refer/, (msg) => {
-      const message = `Here's your referral link: https://t.me/rpstestinggroundsbot?start=${msg.from?.id}`
-      this.sendMessage(msg.chat.id, message)
+      const message = messagesEn.REFERRAL_LINK_MESSAGE(msg.from?.id || '');
+      this.sendMessage(msg.chat.id, message);
     })
 
     this.bot.on("callback_query", async (callbackQuery) => {
@@ -162,39 +159,25 @@ You win -> take your cash 🚀`;
         const userId = callbackQuery.from.id;
 
         if (chatId) {
-          const message = `Here's your referral link: https://t.me/rpstestinggroundsbot?start=${userId}`;
+          const message = messagesEn.REFERRAL_LINK_MESSAGE(userId);
           this.bot.sendMessage(chatId, message);
           this.bot.answerCallbackQuery(callbackQuery.id); // Acknowledge
           return; // Handled, no further processing needed for this callback type
         } else {
           this.logger.warn(`ChatId not available for callback_query 'request_referral_link' from user ${userId}`);
-          this.bot.answerCallbackQuery(callbackQuery.id, { text: "Error: Could not process referral request." });
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_PROCESSING_REFERRAL_REQUEST });
           return; // Handled
         }
       } else if (callbackQuery.data === 'earn_more_options') {
         const chatId = callbackQuery.message?.chat.id;
         if (chatId) {
-          const messageText: string = `What is Rev-Share in RPS Titans?
-
-Rev-share means you earn a share of the game’s revenue when people play in your Telegram group.
-
-📌 Here’s how it works:
-
-You add the RPS Titans bot to your group.
-
-When players play games in your group, the bot collects a small fee.
-
-You earn a percentage of that fee — automatically.
-
-It’s like getting paid every time someone plays! 🎯
-No extra work needed. Just invite the bot and let the games begin. 
-🚀 Ready to earn from your group’s activity? `;
+          const messageText: string = messagesEn.REV_SHARE_INFO;
           const messageOptions: TelegramBot.SendMessageOptions = {
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: 'Yes', callback_data: 'partner_yes' },
-                  { text: 'No', callback_data: 'partner_no' }
+                  { text: messagesEn.PARTNER_YES_BUTTON, callback_data: 'partner_yes' },
+                  { text: messagesEn.PARTNER_NO_BUTTON, callback_data: 'partner_no' }
                 ]
               ]
             }
@@ -203,7 +186,7 @@ No extra work needed. Just invite the bot and let the games begin.
           this.bot.answerCallbackQuery(callbackQuery.id); // Acknowledge the 'Earn More' button press
         } else {
           this.logger.warn(`ChatId not available for callback_query 'earn_more_options' from user ${callbackQuery.from.id}`);
-          this.bot.answerCallbackQuery(callbackQuery.id, { text: "Error: Could not process request." });
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_COULD_NOT_PROCESS_REQUEST });
         }
         return; // Handled
       }
@@ -216,26 +199,20 @@ No extra work needed. Just invite the bot and let the games begin.
           try {
             const existingRequest = await this.revshareService.findRequestByTelegramUserId(telegramUserId);
             if (existingRequest) {
-              this.bot.sendMessage(chatId, 'Your request to join the revenue share program is being processed, please be patient.');
+              this.bot.sendMessage(chatId, messagesEn.REV_SHARE_REQUEST_PROCESSING);
             } else {
               await this.revshareService.createRequest(telegramUserId, undefined, undefined, 'Initial request from partner_yes');
-              const instructions = `Awesome! 🎉 To become a rev-share partner:
-
-1. ➕ Add this bot to your Telegram group.
-
-Once you do that, we’ll automatically detect your group and process your request. Please note: Revenue share is currently supported for public groups (those with a Telegram @username).
-
-We’ll notify you here once your request is reviewed. 🚀`;
+              const instructions = messagesEn.PARTNER_INSTRUCTIONS;
               this.bot.sendMessage(chatId, instructions);
             }
             this.bot.answerCallbackQuery(callbackQuery.id);
           } catch (error) {
             this.logger.error(`Error processing 'partner_yes' for user ${telegramUserId}:`, error);
-            this.bot.answerCallbackQuery(callbackQuery.id, { text: 'An error occurred. Please try again.' });
+            this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_TRY_AGAIN });
           }
         } else {
           this.logger.warn(`ChatId not available for callback_query 'partner_yes' from user ${telegramUserId}`);
-          this.bot.answerCallbackQuery(callbackQuery.id, { text: "Error: Could not process request." });
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_COULD_NOT_PROCESS_REQUEST });
         }
         return; // Handled
       }
@@ -317,11 +294,7 @@ We’ll notify you here once your request is reviewed. 🚀`;
 
                 // Now send confirmation to the user who added the bot
                 try {
-                  const finalMessageToUser = `Great news! RPS Titans bot has been successfully added to your group: '${groupTitle || 'Unnamed Group'}'.
-
-Your rev-share request is now under review, and we'll inform you of the outcome here. We appreciate your patience as we're experiencing a high volume of requests.
-
-Thanks for partnering with RPS Titans! 💪`;
+                  const finalMessageToUser = messagesEn.BOT_ADDED_TO_GROUP_CONFIRMATION(groupTitle || 'Unnamed Group');
                   await this.sendMessage(adderUserId, finalMessageToUser);
                   this.logger.log(`"Bot added to group" confirmation sent to user ${adderUserId}.`);
                 } catch (messageError) {
