@@ -6,6 +6,7 @@ import { UsersService } from 'src/users/users.service';
 import { RevshareService } from '../revshare/revshare.service';
 import { Revshare } from 'src/revshare/schemas/revshare.schema';
 import { messagesEn } from 'src/i18n/en';
+import { encryptForUrl } from 'src/utils/crypt';
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -243,9 +244,16 @@ export class BotService implements OnModuleInit {
         query += `&owner=${groupOwnerId}`;
       }
 
-      this.bot.answerCallbackQuery(callbackQuery.id, {
-        url: `${this.telegramGameUrl}?${query}`
-      });
+      const encryptedUrl = encryptForUrl(this.configService.getOrThrow('HASH_KEY'), query)
+
+      if (chatId) {
+
+        await this.sendMessage(chatId, encryptedUrl)
+        const url = `${this.telegramGameUrl}?${encryptedUrl}`
+        this.sendMessage(chatId, url)
+      }
+
+      this.bot.answerCallbackQuery(callbackQuery.id, { url: 'google.com' });
     });
 
     this.bot.on('message', async (msg) => { // Add async here
