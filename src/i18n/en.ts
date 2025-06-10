@@ -12,7 +12,18 @@ You win -> take your cash 🚀`,
   CANT_REFER_SELF: 'You can\'t refer yourself',
   ALREADY_JOINED: "You have already joined!",
   JOINED_WITH_REFERRAL: (refereeName: string) => `You have joined using ${refereeName}'s referral code`,
-  REFERRAL_LINK_MESSAGE: (userId: string | number) => `Here's your referral link: https://t.me/rpstestinggroundsbot?start=${userId}`,
+  REFERRAL_LINK_MESSAGE: (userId: string | number) => `
+  **🎯Invite & Earn in RPS Titans**
+
+Share your referral link and earn rewards! When someone joins through your link:
+
+**You get 50 coins 💰 ** after they play their first game
+
+**They get 25 coins 🎁** instantly to start playing
+
+Everyone wins—start inviting and grow your Titan army ⚔️!
+
+Here's your referral link: https://t.me/rpstestinggroundsbot?start=${userId}`,
   ERROR_PROCESSING_REFERRAL_REQUEST: "Error: Could not process referral request.",
   REV_SHARE_INFO: `What is Rev-Share in RPS Titans?
 
