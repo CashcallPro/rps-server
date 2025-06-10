@@ -1,8 +1,11 @@
 export const messagesEn = {
   AMOUNT_MUST_BE_NUMBER: 'Amount must be a number',
-  WELCOME_MESSAGE: `Welcome to PRS Titans Online Multiplayer Game!
+  WELCOME_MESSAGE: `**⚡ RPS Titans — The First Win2Earn Game on Telegram 🥇**
 
-PRS Titans is the first Win2Earn real-time multiplayer online game on TON blockchain
+Enter high-stakes Rock-Paper-Scissors battles where players wager tokens 💰 and winners take the prize 🎯.
+Enjoy instant matchmaking 🔄 and earn while you play
+
+— plus, Telegram group admins **earn a share of the revenue 💼**!
 
 You win -> take your cash 🚀`,
   JOIN_CHANNEL_BUTTON: '👋 Join Channel',
@@ -14,7 +17,18 @@ You win -> take your cash 🚀`,
   CANT_REFER_SELF: 'You can\'t refer yourself',
   ALREADY_JOINED: "You have already joined!",
   JOINED_WITH_REFERRAL: (refereeName: string) => `You have joined using ${refereeName}'s referral code`,
-  REFERRAL_LINK_MESSAGE: (userId: string | number) => `Here's your referral link: https://t.me/rpstestinggroundsbot?start=${userId}`,
+  REFERRAL_LINK_MESSAGE: (userId: string | number) => `
+  **🎯Invite & Earn in RPS Titans**
+
+Share your referral link and earn rewards! When someone joins through your link:
+
+**You get 50 coins 💰 ** after they play their first game
+
+**They get 25 coins 🎁** instantly to start playing
+
+Everyone wins—start inviting and grow your Titan army ⚔️!
+
+Here's your referral link: https://t.me/rpstestinggroundsbot?start=${userId}`,
   ERROR_PROCESSING_REFERRAL_REQUEST: "Error: Could not process referral request.",
   REV_SHARE_INFO: `What is Rev-Share in RPS Titans?
 
