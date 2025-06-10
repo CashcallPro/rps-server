@@ -1,6 +1,11 @@
 export const messagesEn = {
   AMOUNT_MUST_BE_NUMBER: 'Amount must be a number',
-  WELCOME_MESSAGE: `RPS Titans is the first win2earn online multiplayer game on Telegram where players wager tokens in high-stakes Rock-Paper-Scissors battles. Matchmaking is instant, and winners earn rewards while group admins share in the revenue.
+  WELCOME_MESSAGE: `**⚡ RPS Titans — The First Win2Earn Game on Telegram 🥇**
+
+Enter high-stakes Rock-Paper-Scissors battles where players wager tokens 💰 and winners take the prize 🎯.
+Enjoy instant matchmaking 🔄 and earn while you play
+
+— plus, Telegram group admins **earn a share of the revenue 💼**!
 
 You win -> take your cash 🚀`,
   JOIN_CHANNEL_BUTTON: '👋 Join Channel',
