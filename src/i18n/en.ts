@@ -1,8 +1,6 @@
 export const messagesEn = {
   AMOUNT_MUST_BE_NUMBER: 'Amount must be a number',
-  WELCOME_MESSAGE: `Welcome to PRS Titans Online Multiplayer Game!
-
-PRS Titans is the first Win2Earn real-time multiplayer online game on TON blockchain
+  WELCOME_MESSAGE: `RPS Titans is the first win2earn online multiplayer game on Telegram where players wager tokens in high-stakes Rock-Paper-Scissors battles. Matchmaking is instant, and winners earn rewards while group admins share in the revenue.
 
 You win -> take your cash 🚀`,
   JOIN_CHANNEL_BUTTON: '👋 Join Channel',
