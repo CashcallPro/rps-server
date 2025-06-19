@@ -13,8 +13,9 @@ You win -> take your cash 🚀`,
   TURKISH_BUTTON: '🇹🇷 Turkish',
   CANT_REFER_SELF: 'You can\'t refer yourself',
   ALREADY_JOINED: "You have already joined!",
-  JOINED_WITH_REFERRAL: (refereeName: string) => `You have joined using ${refereeName}'s referral code`,
-  REFERRAL_LINK_MESSAGE: (userId: string | number) => `Here's your referral link: https://t.me/rpstestinggroundsbot?start=${userId}`,
+  NEW_REFERRAL: (username: string, bonus: number) => `Congrats! @${username} has joined from your invitation, here's ${bonus} coins.`,
+  JOINED_WITH_REFERRAL: (refereeName: string, bonus: number) => `You have joined using @${refereeName}'s referral code, congratulations you've received ${bonus} coins.`,
+  REFERRAL_LINK_MESSAGE: (userId: string | number) => `Here's your referral link: https://t.me/RPS_Titans_bot?start=${userId}`,
   ERROR_PROCESSING_REFERRAL_REQUEST: "Error: Could not process referral request.",
   REV_SHARE_INFO: `What is Rev-Share in RPS Titans?
 

@@ -16,6 +16,8 @@ export class BotService implements OnModuleInit {
   private readonly botToken: string | undefined;
   private readonly gameShortName: string | undefined;
   private readonly telegramGameUrl: string | undefined;
+  private readonly referralBonus: number | undefined;
+  private readonly referreBonus: number | undefined;
 
   constructor(
     private configService: ConfigService,
@@ -26,6 +28,8 @@ export class BotService implements OnModuleInit {
     this.botToken = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     this.gameShortName = this.configService.get<string>('TELEGRAM_GAME_SHORTNAME');
     this.telegramGameUrl = this.configService.get<string>('TELEGRAM_GAME_URL');
+    this.referralBonus = this.configService.get<number>('REFERRAL_BONUS');
+    this.referreBonus = this.configService.get<number>('REFERRE_BONUS');
 
     if (!this.botToken) {
       throw new Error('BOT_TOKEN is not defined in environment variables for BotService');
@@ -35,6 +39,12 @@ export class BotService implements OnModuleInit {
     }
     if (!this.telegramGameUrl) {
       throw new Error('TELEGRAM_GAME_URL is not defined in environment variables for BotService');
+    }
+    if (!this.referralBonus) {
+      throw new Error('REFERRAL_BONUS is not defined in environment variables for BotService');
+    }
+    if (!this.referreBonus) {
+      throw new Error('REFERRE_BONUS is not defined in environment variables for BotService');
     }
   }
 
@@ -115,17 +125,18 @@ export class BotService implements OnModuleInit {
 
       if (referralCode == userId) {
         this.sendMessage(chatId, messagesEn.CANT_REFER_SELF);
+        return
       }
 
       const userExists = await this.userService.findOneByTelegramUserId(userId)
 
       if (userExists) {
-        this.sendMessage(chatId, messagesEn.ALREADY_JOINED);
+        // this.sendMessage(chatId, messagesEn.ALREADY_JOINED);
         // Welcome message will be sent after this block
       } else {
         // Create user only if they don't exist
         const user: CreateUserDto = {
-          coins: 0,
+          coins: this.referralBonus!,
           username: username,
           telegramUserId: userId,
         }
@@ -133,8 +144,12 @@ export class BotService implements OnModuleInit {
         if (referralCode) {
           user.refereeId = referralCode
           const refereeUser = await this.userService.findOneByTelegramUserId(referralCode)
-          this.userService.updateByTelegramId(referralCode, { referralToAdd: userId })
-          this.sendMessage(chatId, messagesEn.JOINED_WITH_REFERRAL(refereeUser?.username || ''));
+          if (refereeUser) {
+            this.userService.updateByTelegramId(referralCode, { referralToAdd: userId })
+            this.userService.addCoins(refereeUser.username, this.referreBonus!)
+            this.sendMessage(chatId, messagesEn.JOINED_WITH_REFERRAL(refereeUser?.username || '', this.referralBonus!));
+            this.sendMessage(refereeUser.telegramUserId, messagesEn.NEW_REFERRAL(user.username, this.referreBonus!))
+          }
         }
         await this.userService.create(user)
       }
@@ -389,11 +404,15 @@ export class BotService implements OnModuleInit {
   }
 
   // Optional: If you want to send messages from other parts of your NestJS app via the bot
-  async sendMessage(chatId: number | string, text: string, options?: TelegramBot.SendMessageOptions): Promise<TelegramBot.Message> {
+  async sendMessage(chatId: number | string, text: string, options?: TelegramBot.SendMessageOptions) {
     if (!this.bot) {
       this.logger.error('Bot not initialized. Cannot send message.');
       throw new Error('Bot not initialized.');
     }
-    return this.bot.sendMessage(chatId, text, options);
+    try {
+      return this.bot.sendMessage(chatId, text, options);
+    } catch (e) {
+      this.logger.error('Failed to send message', e)
+    }
   }
 }

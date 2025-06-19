@@ -61,42 +61,46 @@ export class UsersService {
     return user;
   }
 
-  async updateByTelegramId(userId: string, updateUserDto: UpdateUserDto): Promise<User> {
-    const { referralToAdd, ...otherUpdates } = updateUserDto; // Destructure DTO
+  async updateByTelegramId(userId: string, updateUserDto: UpdateUserDto) {
+    try {
+      const { referralToAdd, ...otherUpdates } = updateUserDto; // Destructure DTO
 
-    const updateOps: any = {};
+      const updateOps: any = {};
 
-    if (Object.keys(otherUpdates).length > 0) {
-      Object.assign(updateOps, otherUpdates);
-    }
-
-    if (referralToAdd) {
-      if (referralToAdd.trim() === '') {
-        throw new BadRequestException(messagesEn.REFERRAL_CODE_EMPTY);
+      if (Object.keys(otherUpdates).length > 0) {
+        Object.assign(updateOps, otherUpdates);
       }
-      updateOps.$push = { referrals: referralToAdd };
-    }
 
-    if (Object.keys(updateOps).length === 0) {
-      const existingUser = await this.userModel.findOne({ telegramUserId: userId }).exec();
-      if (!existingUser) {
+      if (referralToAdd) {
+        if (referralToAdd.trim() === '') {
+          throw new BadRequestException(messagesEn.REFERRAL_CODE_EMPTY);
+        }
+        updateOps.$push = { referrals: referralToAdd };
+      }
+
+      if (Object.keys(updateOps).length === 0) {
+        const existingUser = await this.userModel.findOne({ telegramUserId: userId }).exec();
+        if (!existingUser) {
+          throw new NotFoundException(messagesEn.USER_NOT_FOUND_TELEGRAM_ID(userId));
+        }
+        return existingUser;
+      }
+
+      const updatedUser = await this.userModel
+        .findOneAndUpdate(
+          { telegramUserId: userId },
+          updateOps,
+          { new: true }
+        )
+        .exec();
+
+      if (!updatedUser) {
         throw new NotFoundException(messagesEn.USER_NOT_FOUND_TELEGRAM_ID(userId));
       }
-      return existingUser;
+      return updatedUser;
+    } catch (e) {
+      this.logger.error('failed to update user', e)
     }
-
-    const updatedUser = await this.userModel
-      .findOneAndUpdate(
-        { telegramUserId: userId },
-        updateOps, 
-        { new: true }
-      )
-      .exec();
-
-    if (!updatedUser) {
-      throw new NotFoundException(messagesEn.USER_NOT_FOUND_TELEGRAM_ID(userId));
-    }
-    return updatedUser;
   }
 
   async update(username: string, updateUserDto: UpdateUserDto): Promise<User> { // Return User, not User | null
