@@ -233,6 +233,15 @@ export class BotService implements OnModuleInit {
         return; // Handled
       }
 
+      else if (callbackQuery.data === 'partner_no') {
+        const chatId = callbackQuery.message?.chat.id;
+        if (chatId) {
+          this.sendMessage(chatId, messagesEn.PARTNER_NO_MESSAGE)
+        }
+        this.bot.answerCallbackQuery(callbackQuery.id)
+        return
+      }
+
       // Existing game-related callback logic starts here
       // (It will only be reached if callbackQuery.data is not handled above)
       const userId = callbackQuery.from.id;

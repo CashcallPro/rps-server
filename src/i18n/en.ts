@@ -42,6 +42,7 @@ No extra work needed. Just invite the bot and let the games begin.
 Once you do that, we’ll automatically detect your group and process your request. Please note: Revenue share is currently supported for public groups (those with a Telegram @username).
 
 We’ll notify you here once your request is reviewed. 🚀`,
+  PARTNER_NO_MESSAGE: 'Well, some decisions needs balls 🍒',
   ERROR_TRY_AGAIN: 'An error occurred. Please try again.',
   ERROR_COULD_NOT_PROCESS_REQUEST: "Error: Could not process request.",
   BOT_ADDED_TO_GROUP_CONFIRMATION: (groupTitle: string) => `Great news! RPS Titans bot has been successfully added to your group: '${groupTitle || 'Unnamed Group'}'.
