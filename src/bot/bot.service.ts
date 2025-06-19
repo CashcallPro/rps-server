@@ -18,6 +18,7 @@ export class BotService implements OnModuleInit {
   private readonly telegramGameUrl: string | undefined;
   private readonly referralBonus: number | undefined;
   private readonly referreBonus: number | undefined;
+  private readonly wishlistPhoto: string | undefined;
 
   constructor(
     private configService: ConfigService,
@@ -30,6 +31,7 @@ export class BotService implements OnModuleInit {
     this.telegramGameUrl = this.configService.get<string>('TELEGRAM_GAME_URL');
     this.referralBonus = this.configService.get<number>('REFERRAL_BONUS');
     this.referreBonus = this.configService.get<number>('REFERRE_BONUS');
+    this.wishlistPhoto = this.configService.get<string>('WISHLIST_PHOTO');
 
     if (!this.botToken) {
       throw new Error('BOT_TOKEN is not defined in environment variables for BotService');
@@ -45,6 +47,9 @@ export class BotService implements OnModuleInit {
     }
     if (!this.referreBonus) {
       throw new Error('REFERRE_BONUS is not defined in environment variables for BotService');
+    }
+    if (!this.wishlistPhoto) {
+      throw new Error('WISHLIST_PHOTO is not defined in environment variables for BotService');
     }
   }
 
@@ -105,6 +110,9 @@ export class BotService implements OnModuleInit {
         reply_markup: {
           inline_keyboard: [
             // Each array within inline_keyboard represents a row of buttons
+            [
+              { text: messagesEn.WISHLIST_BUTTON, callback_data: 'wishlist' } // Replace with actual URL
+            ],
             [
               { text: messagesEn.JOIN_CHANNEL_BUTTON, url: 'https://t.me/rps_titans' } // Replace with actual URL
             ],
@@ -184,7 +192,29 @@ export class BotService implements OnModuleInit {
           this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_PROCESSING_REFERRAL_REQUEST });
           return; // Handled
         }
-      } else if (callbackQuery.data === 'earn_more_options') {
+      }
+
+      else if (callbackQuery.data === 'wishlist') {
+        const chatId = callbackQuery.message?.chat.id;
+        const telegramUserId = callbackQuery.from.id.toString()
+        if (chatId && telegramUserId && this.wishlistPhoto) {
+          const user = await this.userService.findOneByTelegramUserId(telegramUserId)
+          if (!user) {
+            this.bot.answerCallbackQuery(callbackQuery.id)
+            return
+          }
+          const alreadyWishlisted = user?.badges.find((badge) => badge === 'og')
+
+          if (!alreadyWishlisted) {
+            await this.userService.updateByTelegramId(telegramUserId, { badgeToAdd: 'og' })
+            this.bot.sendPhoto(chatId, this.wishlistPhoto, { caption: messagesEn.WISHLIST_SUCCESS(user?.username) })
+          }
+        }
+        this.bot.answerCallbackQuery(callbackQuery.id)
+        return;
+      }
+
+      else if (callbackQuery.data === 'earn_more_options') {
         const chatId = callbackQuery.message?.chat.id;
         if (chatId) {
           const messageText: string = messagesEn.REV_SHARE_INFO;

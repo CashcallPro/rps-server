@@ -63,7 +63,7 @@ export class UsersService {
 
   async updateByTelegramId(userId: string, updateUserDto: UpdateUserDto) {
     try {
-      const { referralToAdd, ...otherUpdates } = updateUserDto; // Destructure DTO
+      const { referralToAdd, badgeToAdd, ...otherUpdates } = updateUserDto;
 
       const updateOps: any = {};
 
@@ -76,6 +76,10 @@ export class UsersService {
           throw new BadRequestException(messagesEn.REFERRAL_CODE_EMPTY);
         }
         updateOps.$push = { referrals: referralToAdd };
+      }
+
+      if (badgeToAdd) {
+        updateOps.$push = { badges: badgeToAdd }
       }
 
       if (Object.keys(updateOps).length === 0) {

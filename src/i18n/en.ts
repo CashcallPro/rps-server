@@ -5,6 +5,7 @@ export const messagesEn = {
 PRS Titans is the first Win2Earn real-time multiplayer online game on TON blockchain
 
 You win -> take your cash 🚀`,
+  WISHLIST_BUTTON: '✅ Wishlist now!',
   JOIN_CHANNEL_BUTTON: '👋 Join Channel',
   REFERRAL_BUTTON: '🎁 Referral',
   EARN_MORE_BUTTON: '💵 Earn More!',
@@ -103,4 +104,5 @@ Thanks for partnering with RPS Titans! 💪`,
   // USER_NOT_FOUND_DURING_COIN_REMOVAL: (username: string) => `User with username '${username}' not found during coin removal.`, // Covered by USER_NOT_FOUND_USERNAME
   MATCH_ALREADY_RECORDED: (sessionId: string, username: string) => `Match with sessionId '${sessionId}' already recorded for user '${username}'.`,
   COULD_NOT_RECORD_MATCH: 'Could not record the match.',
+  WISHLIST_SUCCESS: (username?: string) => `Congradulation @${username}! now you have become an OG Titan!\nStay Tuned for the rewards and next steps.`
 };

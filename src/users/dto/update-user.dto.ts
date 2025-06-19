@@ -15,4 +15,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString({ message: 'Each referral item must be a string.' })
   referralToAdd?: string;
+  
+  @IsOptional()
+  @IsString({ message: 'Badge must be a string.' })
+  badgeToAdd?: string;
 }
