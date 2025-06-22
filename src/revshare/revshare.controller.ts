@@ -3,17 +3,27 @@ import { RevshareService } from './revshare.service';
 import { Revshare } from './schemas/revshare.schema';
 import { BotService } from '../bot/bot.service'; // Added BotService import
 // import { AdminGuard } from '../admin/guards/admin.guard'; // Example guard, assuming you have one
-// import { AdminGuard } from '../../admin/guards/admin.guard'; // Assuming path to admin guard
+import { messagesEn } from 'src/i18n/en';
+import { ConfigService } from '@nestjs/config';
 
 
 @Controller('revshare')
 export class RevshareController {
   private readonly logger = new Logger(RevshareController.name);
 
+  private readonly congratsPhoto: string | undefined;
+
   constructor(
     private readonly revshareService: RevshareService,
     private readonly botService: BotService,
-  ) { }
+    private readonly configService: ConfigService
+  ) {
+    this.congratsPhoto = this.configService.get<string>('CONGRATULATIONS_PHOTO');
+
+    if (!this.congratsPhoto) {
+      throw new Error('CONGRATULATIONS_PHOTO is not defined in environment variables');
+    }
+  }
 
   // Example: Get all requests (potentially for an admin dashboard)
   // Consider adding authentication/authorization guards here
@@ -38,10 +48,11 @@ export class RevshareController {
     const updatedRequest = await this.revshareService.updateRequest(telegramUserId, { status: 'approved' });
 
     try {
-      await this.botService.sendMessage(
+      await this.botService.sendPhoto(
         updatedRequest.telegramUserId,
-        "Congratulations! Your rev-share request has been approved. You can now start playing by typing /play in your group."
-      );
+        messagesEn.REVSHARE_APPROVED,
+        this.congratsPhoto!
+      )
       this.logger.log(`Approval notification sent to ${updatedRequest.telegramUserId}`);
     } catch (error) {
       this.logger.error(`Failed to send approval notification to ${updatedRequest.telegramUserId}: ${error.message}`, error.stack);

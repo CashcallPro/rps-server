@@ -86,6 +86,8 @@ export class BotService implements OnModuleInit {
     this.bot.onText(/\/play/, (msg) => {
       const chatId = msg.chat.id;
       this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);
+      this.sendMessage(chatId, '⚔️ RPS Titans — Coming Soon')
+      return
       this.bot.sendGame(chatId, this.gameShortName!)
         .then(() => {
           this.logger.log(`Game "${this.gameShortName}" sent to chat ${chatId}`)
@@ -245,6 +247,13 @@ export class BotService implements OnModuleInit {
           try {
             const existingRequest = await this.revshareService.findRequestByTelegramUserId(telegramUserId);
             if (existingRequest) {
+
+              if (existingRequest.status === 'approved') {
+                this.bot.sendMessage(chatId, messagesEn.REV_SHARE_REQUEST_APPROVED);
+                this.bot.answerCallbackQuery(callbackQuery.id);
+                return
+              }
+
               this.bot.sendMessage(chatId, messagesEn.REV_SHARE_REQUEST_PROCESSING);
             } else {
               await this.revshareService.createRequest(telegramUserId, undefined, undefined, 'Initial request from partner_yes');
@@ -452,6 +461,18 @@ export class BotService implements OnModuleInit {
       return this.bot.sendMessage(chatId, text, options);
     } catch (e) {
       this.logger.error('Failed to send message', e)
+    }
+  }
+
+  async sendPhoto(chatId: number | string, caption: string, photo: string) {
+    if (!this.bot) {
+      this.logger.error('Bot not initialized. Cannot send message.');
+      throw new Error('Bot not initialized.');
+    }
+    try {
+      return this.bot.sendPhoto(chatId, photo, { caption })
+    } catch (e) {
+      this.logger.error('Failed to send photo', e)
     }
   }
 }

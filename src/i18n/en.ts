@@ -5,7 +5,7 @@ export const messagesEn = {
 PRS Titans is the first Win2Earn real-time multiplayer online game on TON blockchain
 
 You win -> take your cash 🚀`,
-  WISHLIST_BUTTON: '✅ Wishlist now!',
+  WISHLIST_BUTTON: '✅ Whitelist now!',
   JOIN_CHANNEL_BUTTON: '👋 Join Channel',
   REFERRAL_BUTTON: '🎁 Referral',
   EARN_MORE_BUTTON: '💵 Earn More!',
@@ -16,7 +16,16 @@ You win -> take your cash 🚀`,
   ALREADY_JOINED: "You have already joined!",
   NEW_REFERRAL: (username: string, bonus: number) => `Congrats! @${username} has joined from your invitation, here's ${bonus} coins.`,
   JOINED_WITH_REFERRAL: (refereeName: string, bonus: number) => `You have joined using @${refereeName}'s referral code, congratulations you've received ${bonus} coins.`,
-  REFERRAL_LINK_MESSAGE: (userId: string | number) => `Here's your referral link: https://t.me/RPS_Titans_bot?start=${userId}`,
+  REFERRAL_LINK_MESSAGE: (userId: string | number) => `Join the RPS Titans Referral Program!
+
+Here’s how it works in RPS Titans:
+
+👥 Invite your friends to play the game on Telegram
+💰 You get 20 coins for every new user you refer
+🎁 Your friend gets 10 coins as a welcome bonus
+🔥 During launch week, top referrers get bonus rewards & whitelist priority
+
+🔗 Here's your referral link: https://t.me/RPS_Titans_bot?start=${userId}`,
   ERROR_PROCESSING_REFERRAL_REQUEST: "Error: Could not process referral request.",
   REV_SHARE_INFO: `What is Rev-Share in RPS Titans?
 
@@ -32,13 +41,20 @@ You earn a percentage of that fee — automatically.
 
 It’s like getting paid every time someone plays! 🎯
 No extra work needed. Just invite the bot and let the games begin.
+
+🌐 Partners (https://www.rpstitans.xyz/partners)
+
 🚀 Ready to earn from your group’s activity? `,
   PARTNER_YES_BUTTON: 'Yes',
   PARTNER_NO_BUTTON: 'No',
-  REV_SHARE_REQUEST_PROCESSING: 'Your request to join the revenue share program is being processed, please be patient.',
+  REV_SHARE_REQUEST_PROCESSING: `Your rev-share application is being reviewed.
+We’re receiving a high volume of requests, so please be patient.
+
+You’ll be notified as soon as it’s approved. ⏳`,
+  REV_SHARE_REQUEST_APPROVED: 'Your request to join the revenue share program is already accepted, stay tuned.',
   PARTNER_INSTRUCTIONS: `Awesome! 🎉 To become a rev-share partner:
 
-1. ➕ Add this bot to your Telegram group.
+➕ Add this bot to your Telegram group.
 
 Once you do that, we’ll automatically detect your group and process your request. Please note: Revenue share is currently supported for public groups (those with a Telegram @username).
 
@@ -104,5 +120,22 @@ Thanks for partnering with RPS Titans! 💪`,
   // USER_NOT_FOUND_DURING_COIN_REMOVAL: (username: string) => `User with username '${username}' not found during coin removal.`, // Covered by USER_NOT_FOUND_USERNAME
   MATCH_ALREADY_RECORDED: (sessionId: string, username: string) => `Match with sessionId '${sessionId}' already recorded for user '${username}'.`,
   COULD_NOT_RECORD_MATCH: 'Could not record the match.',
-  WISHLIST_SUCCESS: (username?: string) => `Congradulation @${username}! now you have become an OG Titan!\nStay Tuned for the rewards and next steps.`
+  WISHLIST_SUCCESS: (username?: string) => `⚔️ A New Titan Has Been Chosen
+Your application is approved @${username}. You now stand among the first 200 Titan partners.
+
+You’ll soon gain early access to the game, and start earning from every battle hosted in your group.
+The PvP arena opens soon, and you’ll be notified the moment it’s live.
+
+Prepare your community — glory and gold await. 🏆💰`,
+
+  REVSHARE_APPROVED: `✅ Titan Rev-Share Partnership Approved!
+
+Great news 🥳 your rev-share request has been approved!
+You’re now officially a Titan Partner in the RPS Titans ecosystem💰
+
+You’ll receive all the benefits listed on our official partner page, including early access, rev-share, and launch bonuses:
+
+🌐 Partners (https://www.rpstitans.xyz/partners)`,
+
+
 };
