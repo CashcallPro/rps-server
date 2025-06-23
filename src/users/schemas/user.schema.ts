@@ -43,14 +43,17 @@ export class User {
   @Prop({ required: false })
   refereeId: string;
 
-  @Prop({ required: false, default: [], type: [String]})
+  @Prop({ required: false, default: [], type: [String] })
   referrals: string[];
 
   @Prop({ required: true, default: 0, min: 0 })
   coins: number;
 
-  @Prop({ type: [MatchSchema], default: [] }) // Array of Match objects
+  @Prop({ type: [MatchSchema], default: [] })
   matches: Match[];
+
+  @Prop({ type: [String], default: [] })
+  badges: string[]
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
