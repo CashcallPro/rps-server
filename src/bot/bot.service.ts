@@ -30,7 +30,7 @@ export class BotService implements OnModuleInit {
     this.gameShortName = this.configService.get<string>('TELEGRAM_GAME_SHORTNAME');
     this.telegramGameUrl = this.configService.get<string>('TELEGRAM_GAME_URL');
     this.referralBonus = this.configService.get<number>('REFERRAL_BONUS');
-    this.referreBonus = this.configService.get<number>('REFERRE_BONUS');
+    this.referreBonus = this.configService.get<number>('REFEREE_BONUS');
     this.wishlistPhoto = this.configService.get<string>('WISHLIST_PHOTO');
 
     if (!this.botToken) {
@@ -46,7 +46,7 @@ export class BotService implements OnModuleInit {
       throw new Error('REFERRAL_BONUS is not defined in environment variables for BotService');
     }
     if (!this.referreBonus) {
-      throw new Error('REFERRE_BONUS is not defined in environment variables for BotService');
+      throw new Error('REFEREE_BONUS is not defined in environment variables for BotService');
     }
     if (!this.wishlistPhoto) {
       throw new Error('WISHLIST_PHOTO is not defined in environment variables for BotService');
