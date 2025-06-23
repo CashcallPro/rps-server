@@ -1,0 +1,45 @@
+# Docker Compose overrides for Production environment
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # args: # If your Dockerfile needs build-time args for production
+      #   NODE_ENV: production
+    container_name: rps-server-app-prod
+    ports:
+      # Map host port from .env (HOST_APP_PORT) to container port from .env (PORT)
+      - "${HOST_APP_PORT:-3000}:${PORT:-3000}"
+    depends_on:
+      - redis-server
+      - mongodb
+    environment:
+      NODE_ENV: production
+
+      # Application specific variables from .env (or injected by CI/CD in real prod)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_GAME_SHORTNAME: ${TELEGRAM_GAME_SHORTNAME}
+      TELEGRAM_GAME_URL: ${TELEGRAM_GAME_URL}
+      TURN_TIMEOUT_DURATION_MS: ${TURN_TIMEOUT_DURATION_MS}
+      PORT: ${PORT:-3000} # Port app listens on *inside* the container
+      MONGODB_URI: ${MONGODB_URI} # Constructed in .env to point to Docker's mongodb service
+      MATCHMAKING_BOT_TIMEOUT_MS: ${MATCHMAKING_BOT_TIMEOUT_MS}
+      REFERRAL_BONUS: ${REFERRAL_BONUS}
+      REFEREE_BONUS: ${REFEREE_BONUS} # Adjusted from REFERRE_BONUS as per .env.example
+      WISHLIST_PHOTO: ${WISHLIST_PHOTO}
+      CONGRATULATIONS_PHOTO: ${CONGRATULATIONS_PHOTO}
+      HASH_KEY: ${HASH_KEY}
+
+      # Redis connection details for the application
+      REDIS_HOST: ${REDIS_HOST:-redis-server}
+      REDIS_PORT: ${REDIS_PORT:-6379} # Port Redis listens on *inside* Docker network
+
+      # As with dev, individual MONGO_* parts are not explicitly needed if MONGODB_URI is used.
+      # For production, these variables would ideally be set in the deployment environment's secrets management.
+
+    # No volumes for source code in production; code is built into the image.
+    # command: node dist/main # This should be the default CMD in your Dockerfile's production stage
+    networks:
+      - app-network
+    restart: unless-stopped # Or 'always' depending on your production strategy

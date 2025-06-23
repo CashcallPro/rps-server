@@ -1,0 +1,52 @@
+# Docker Compose overrides for Development environment
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # target: development # Uncomment if you have a specific 'development' stage in Dockerfile
+    container_name: rps-server-app-dev
+    ports:
+      # Map host port from .env (HOST_APP_PORT) to container port from .env (PORT)
+      - "${HOST_APP_PORT:-3000}:${PORT:-3000}"
+    depends_on:
+      - redis-server
+      - mongodb
+    environment:
+      NODE_ENV: development
+
+      # Application specific variables from .env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_GAME_SHORTNAME: ${TELEGRAM_GAME_SHORTNAME}
+      TELEGRAM_GAME_URL: ${TELEGRAM_GAME_URL}
+      TURN_TIMEOUT_DURATION_MS: ${TURN_TIMEOUT_DURATION_MS}
+      PORT: ${PORT:-3000} # Port app listens on *inside* the container
+      MONGODB_URI: ${MONGODB_URI} # Constructed in .env to point to Docker's mongodb service
+      MATCHMAKING_BOT_TIMEOUT_MS: ${MATCHMAKING_BOT_TIMEOUT_MS}
+      REFERRAL_BONUS: ${REFERRAL_BONUS}
+      REFEREE_BONUS: ${REFEREE_BONUS} # Adjusted from REFERRE_BONUS as per .env.example
+      WISHLIST_PHOTO: ${WISHLIST_PHOTO}
+      CONGRATULATIONS_PHOTO: ${CONGRATULATIONS_PHOTO}
+      HASH_KEY: ${HASH_KEY}
+
+      # Redis connection details for the application
+      REDIS_HOST: ${REDIS_HOST:-redis-server}
+      REDIS_PORT: ${REDIS_PORT:-6379} # Port Redis listens on *inside* Docker network
+
+      # Note: MONGO_HOST, MONGO_DATABASE etc. are not explicitly needed here if MONGODB_URI is correctly set in .env
+      # and used by the application. If your app constructs the URI from parts, add them:
+      # MONGO_HOST: mongodb
+      # APP_MONGO_DATABASE_INIT: ${APP_MONGO_DATABASE_INIT} # Or just MONGO_DATABASE if app uses that
+      # APP_MONGO_USERNAME_INIT: ${APP_MONGO_USERNAME_INIT} # Or just MONGO_USERNAME
+      # APP_MONGO_PASSWORD_INIT: ${APP_MONGO_PASSWORD_INIT} # Or just MONGO_PASSWORD
+
+    volumes:
+      - .:/usr/src/app         # Mounts the current directory to /usr/src/app for live reload
+      - /usr/src/app/node_modules # Excludes node_modules from being overwritten by the host mount
+      # If you have a dist folder from local builds you want to ignore in the container for dev:
+      # - /usr/src/app/dist
+    command: yarn start:dev # Use NestJS hot-reload development server
+    networks:
+      - app-network # Connects to the custom network defined in base docker-compose.yml
+    restart: unless-stopped

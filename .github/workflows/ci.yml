@@ -1,0 +1,195 @@
+name: Node.js CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  # Default environment variables for the workflow jobs
+  # These can be overridden at the job or step level if needed
+  # For sensitive data, use GitHub Secrets in repository settings
+  NODE_ENV: test # Default to 'test' for CI jobs like linting and testing
+  # MONGODB_URI_TEST: mongodb://testuser:testpassword@localhost:27017/testdb?authSource=admin # Example for tests if needed
+
+  # GHCR Configuration
+  IMAGE_NAME: ${{ github.repository }} # Uses repository name as image name e.g., owner/repo-name
+
+jobs:
+  lint-and-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Specify your Node.js version
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run ESLint
+        run: yarn lint # Assumes 'lint' script is in package.json (e.g., eslint .)
+
+      - name: Check formatting with Prettier
+        run: yarn format --check # Assumes 'format' script uses Prettier with a check flag
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-format # Run after linting and formatting pass
+
+    # Services for MongoDB and Redis if your e2e tests need them
+    # These are example service configurations; adjust versions and settings as needed.
+    services:
+      mongodb:
+        image: mongo:6.0 # Or your desired MongoDB version
+        env: # These are for the MongoDB service itself during tests
+          MONGO_INITDB_ROOT_USERNAME: testroot
+          MONGO_INITDB_ROOT_PASSWORD: testrootpassword
+          MONGO_INITDB_DATABASE: ci_test_db # A dedicated test database
+          MONGO_APP_USERNAME: ci_test_user # User for tests
+          MONGO_APP_PASSWORD: ci_test_user_password
+        ports:
+          - 27017:27017 # Map to host for easier access if needed, though app should connect to 'mongodb' host
+        # volumes: # If you have an init script for test DB
+        #   - ./path/to/your/test-mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run unit and e2e tests
+        env:
+          # Environment variables for your application during tests
+          # These should match what your app expects (.env structure)
+          NODE_ENV: test
+          PORT: 3001 # Use a different port for CI tests if needed, or same as default (3000)
+
+          # Construct MONGODB_URI for tests using service details
+          MONGODB_URI: mongodb://${{ job.services.mongodb.env.MONGO_APP_USERNAME }}:${{ job.services.mongodb.env.MONGO_APP_PASSWORD }}@localhost:27017/${{ job.services.mongodb.env.MONGO_INITDB_DATABASE }}?authSource=admin
+
+          REDIS_HOST: localhost # For tests, connect to localhost as services are mapped
+          REDIS_PORT: 6379      # Port for Redis service
+
+          # Add other application-specific variables if your tests require them
+          # Use GitHub secrets for sensitive values if actual API calls are made
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_CI || 'dummy_telegram_token_for_ci' }}
+          TELEGRAM_GAME_SHORTNAME: testgame
+          TELEGRAM_GAME_URL: http://test.game/url
+          TURN_TIMEOUT_DURATION_MS: 10000
+          MATCHMAKING_BOT_TIMEOUT_MS: 10000
+          REFERRAL_BONUS: 10
+          REFEREE_BONUS: 5
+          WISHLIST_PHOTO: http://test.photo/wishlist.png
+          CONGRATULATIONS_PHOTO: http://test.photo/congrats.png
+          HASH_KEY: ci_test_hash_key_1234567890
+
+        run: |
+          yarn test # Assumes this runs unit tests
+          yarn test:e2e # Assumes this runs e2e tests
+
+  build-docker-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test # Run after tests pass
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false # Do not push yet, only build
+          tags: ${{ env.IMAGE_NAME }}:latest # Tag format: owner/repo:latest
+          # You might want to add more tags, e.g., based on commit SHA
+          # tags: |
+          #   ${{ env.IMAGE_NAME }}:latest
+          #   ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Provide build args if your Dockerfile needs them (e.g., for secrets during build)
+          # build-args: |
+          #   SOME_BUILD_ARG=${{ secrets.SOME_BUILD_SECRET }}
+
+  push-to-ghcr:
+    name: Push Docker Image to GHCR
+    runs-on: ubuntu-latest
+    needs: build-docker-image # Run after image is built successfully
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Only run on push to main branch
+
+    permissions:
+      contents: read
+      packages: write # Required to push to GitHub Packages (GHCR)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Needed if you rebuild, or if build context changes
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }} # Your GitHub username or organization
+          password: ${{ secrets.GITHUB_TOKEN }} # GITHUB_TOKEN is automatically available
+
+      - name: Build and push Docker image to GHCR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} # Tag with commit SHA for versioning
+            # You could also add a tag for the version from package.json if available
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # build-args: | # If needed
+          #   SOME_BUILD_ARG=${{ secrets.SOME_BUILD_SECRET }}
+
+# Future considerations:
+# - Separate deployment job (e.g., to Kubernetes, AWS ECS, Heroku, etc.)
+# - Slack/Discord notifications on failure/success
+# - More sophisticated testing strategies (e.g., matrix testing for different Node versions)
+# - Security scanning of the Docker image (e.g., Trivy, Snyk)
+# - Handling of .env files for different CI stages (e.g., creating a .env.test from secrets)
+# - If your tests require the app to be running via docker-compose, the 'test' job would need
+#   to run `docker-compose up` with test-specific configurations. The current setup assumes
+#   tests can run against services (mongo, redis) directly.
