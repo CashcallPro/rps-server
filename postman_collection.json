@@ -1,0 +1,490 @@
+{
+  "info": {
+    "_postman_id": "c29f59a0-8092-4809-933c-97159e168a73",
+    "name": "Project API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get Hello",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Admin Coins",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/admin/coins",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "coins"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Adjust Admin Coins",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/coins/adjust",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "coins",
+            "adjust"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Send Game Score",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientInlineMessageId\": \"your_inline_message_id\",\n  \"userId\": 12345,\n  \"score\": 100\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/bot/score",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "bot",
+            "score"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Send Bot Message",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"chatId\": \"chat_id_here\",\n  \"message\": \"Hello from Postman!\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/bot/message",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "bot",
+            "message"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get All Revshare Requests",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/revshare/requests",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "revshare",
+            "requests"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Approve Revshare Request",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/revshare/:telegramUserId/approve",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "revshare",
+            ":telegramUserId",
+            "approve"
+          ],
+          "variable": [
+            {
+              "key": "telegramUserId",
+              "value": "enter_telegram_user_id_here"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Reject Revshare Request",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/revshare/:telegramUserId/reject",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "revshare",
+            ":telegramUserId",
+            "reject"
+          ],
+          "variable": [
+            {
+              "key": "telegramUserId",
+              "value": "enter_telegram_user_id_here"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newuser\",\n  \"telegramUserId\": \"telegram123\",\n  \"refereeId\": \"referrer_user\",\n  \"coins\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by Username",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:username",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":username"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "sample_user"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"coins\": 150,\n  \"referralToAdd\": \"new_referral_id\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:username",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":username"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "sample_user"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:username",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":username"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "sample_user"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Coins to User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:username/add-coins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":username",
+                "add-coins"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "sample_user"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Coins from User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:username/remove-coins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":username",
+                "remove-coins"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "sample_user"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Match to User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"session_abc123\",\n  \"players\": [\"player1_username\", \"player2_username\"],\n  \"scores\": [\n    { \"username\": \"player1_username\", \"score\": 100 },\n    { \"username\": \"player2_username\", \"score\": 85 }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:username/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":username",
+                "matches"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "sample_user"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:username/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":username",
+                "matches"
+              ],
+              "variable": [
+                {
+                  "key": "username",
+                  "value": "sample_user"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
