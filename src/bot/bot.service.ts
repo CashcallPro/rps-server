@@ -85,9 +85,7 @@ export class BotService implements OnModuleInit {
 
     this.bot.onText(/\/play/, (msg) => {
       const chatId = msg.chat.id;
-      this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);
-      this.sendMessage(chatId, '⚔️ RPS Titans — Coming Soon')
-      return
+      this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);      
       this.bot.sendGame(chatId, this.gameShortName!)
         .then(() => {
           this.logger.log(`Game "${this.gameShortName}" sent to chat ${chatId}`)
