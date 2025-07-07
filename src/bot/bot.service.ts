@@ -85,7 +85,7 @@ export class BotService implements OnModuleInit {
 
     this.bot.onText(/\/play/, (msg) => {
       const chatId = msg.chat.id;
-      this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);      
+      this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);
       this.bot.sendGame(chatId, this.gameShortName!)
         .then(() => {
           this.logger.log(`Game "${this.gameShortName}" sent to chat ${chatId}`)
@@ -309,12 +309,11 @@ export class BotService implements OnModuleInit {
 
       if (chatId) {
 
-        await this.sendMessage(chatId, encryptedUrl)
         const url = `${this.telegramGameUrl}?${encryptedUrl}`
         this.sendMessage(chatId, url)
-      }
 
-      this.bot.answerCallbackQuery(callbackQuery.id, { url: 'google.com' });
+        this.bot.answerCallbackQuery(callbackQuery.id, { url });
+      }
     });
 
     this.bot.on('message', async (msg) => { // Add async here
