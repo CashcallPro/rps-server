@@ -83,6 +83,16 @@ export class BotService implements OnModuleInit {
     // The constructor and OnModuleInit lifecycle ensure this.
     this.bot = new TelegramBot(this.botToken!, { polling: true });
 
+    this.bot.onText(/\/optimusprime/, (msg) => {
+      const chatId = msg.chat.id;
+      this.logger.log(`Received /optimusprime from chat ${chatId}. Sending game: ${this.gameShortName}`);
+      this.bot.sendGame(chatId, this.gameShortName!)
+        .then(() => {
+          this.logger.log(`Game "${this.gameShortName}" sent to chat ${chatId}`)
+        })
+        .catch(err => this.logger.error(`Error sending game to ${chatId}:`, err.response?.body || err.message || err));
+    });
+
     this.bot.onText(/\/play/, (msg) => {
       const chatId = msg.chat.id;
       this.logger.log(`Received /playgame from chat ${chatId}. Sending game: ${this.gameShortName}`);
@@ -428,19 +438,20 @@ export class BotService implements OnModuleInit {
       // this.bot.sendMessage(chatId, 'Received your message'); // Original placeholder, remove if not needed
     });
 
-    this.bot.on('inline_query', (query) => {
+    // disabled inline_query for now
+    // this.bot.on('inline_query', (query) => {
 
-      const inlineQueryId = query.id;
-      this.logger.log(`Received inline query (ID: ${inlineQueryId}) for game: ${this.gameShortName}`);
-      const results: TelegramBot.InlineQueryResult[] = [{
-        type: 'game',
-        id: '1', // Unique ID for this result
-        game_short_name: this.gameShortName!,
-      }];
-      this.bot.answerInlineQuery(inlineQueryId, results)
-        .then(() => this.logger.log(`Answered inline query ${inlineQueryId} with game ${this.gameShortName}`))
-        .catch(err => this.logger.error("Error answering inline query:", err.response?.body || err.message || err));
-    });
+    //   const inlineQueryId = query.id;
+    //   this.logger.log(`Received inline query (ID: ${inlineQueryId}) for game: ${this.gameShortName}`);
+    //   const results: TelegramBot.InlineQueryResult[] = [{
+    //     type: 'game',
+    //     id: '1', // Unique ID for this result
+    //     game_short_name: this.gameShortName!,
+    //   }];
+    //   this.bot.answerInlineQuery(inlineQueryId, results)
+    //     .then(() => this.logger.log(`Answered inline query ${inlineQueryId} with game ${this.gameShortName}`))
+    //     .catch(err => this.logger.error("Error answering inline query:", err.response?.body || err.message || err));
+    // });
 
     this.bot.on('polling_error', (error) => {
       this.logger.error(`Telegram Polling Error: ${error.message}`, error);
