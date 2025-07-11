@@ -320,8 +320,6 @@ export class BotService implements OnModuleInit {
       const encryptedUrl = encryptForUrl(this.configService.getOrThrow('HASH_KEY'), query)
 
       if (chatId) {
-
-        await this.sendMessage(chatId, encryptedUrl)
         const url = `${this.telegramGameUrl}?${encryptedUrl}`
         this.bot.answerCallbackQuery(callbackQuery.id, { url });
       }
