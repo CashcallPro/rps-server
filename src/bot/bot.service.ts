@@ -323,10 +323,8 @@ export class BotService implements OnModuleInit {
 
         await this.sendMessage(chatId, encryptedUrl)
         const url = `${this.telegramGameUrl}?${encryptedUrl}`
-        this.sendMessage(chatId, url)
+        this.bot.answerCallbackQuery(callbackQuery.id, { url });
       }
-
-      this.bot.answerCallbackQuery(callbackQuery.id, { url: 'google.com' });
     });
 
     this.bot.on('message', async (msg) => { // Add async here
