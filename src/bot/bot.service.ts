@@ -134,10 +134,8 @@ export class BotService implements OnModuleInit {
             [
               { text: messagesEn.EARN_MORE_BUTTON, callback_data: 'earn_more_options' }
             ],
-            [ // New row for language buttons
-              { text: messagesEn.RUSSIAN_BUTTON, url: 'https://t.me/rpstitans/2' },
-              { text: messagesEn.PERSIAN_BUTTON, url: 'https://t.me/rpstitans/3' },
-              { text: messagesEn.TURKISH_BUTTON, url: 'https://t.me/rpstitans/4' }
+            [
+              { text: messagesEn.COMMUNITY_BUTTON, url: 'https://t.me/rpstitans' }
             ]
           ]
         }
