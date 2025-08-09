@@ -2,6 +2,15 @@
 
 This project is a backend server for a Rock Paper Scissors game, built with NestJS. It uses MongoDB for data storage and Redis for caching or session management. The application is fully containerized using Docker.
 
+
+## Production build
+> docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+
+down server:
+> docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+## Server log
+> docker logs -f rps-server-app-prod
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
@@ -144,6 +153,14 @@ The image will be available at `ghcr.io/<YOUR_GITHUB_USERNAME_OR_ORG>/<REPOSITOR
 -   `.env.example`: Template for environment variables.
 -   `mongo-init.js`: Initialization script for MongoDB to create the application user and database.
 -   `.github/workflows/ci.yml`: GitHub Actions CI/CD workflow definition.
+
+
+
+## Redis problem
+it would solved by
+> docker exec -it redis-server redis-cli
+
+> REPLICAOF NO ONE
 
 ---
 
