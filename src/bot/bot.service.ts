@@ -126,18 +126,13 @@ export class BotService implements OnModuleInit {
               { text: messagesEn.WISHLIST_BUTTON, callback_data: 'wishlist' } // Replace with actual URL
             ],
             [
-              { text: messagesEn.JOIN_CHANNEL_BUTTON, url: 'https://t.me/rps_titans' } // Replace with actual URL
+              { text: messagesEn.COMMUNITY_BUTTON, url: 'https://t.me/rpstitans' } // Replace with actual URL
             ],
             [
               { text: messagesEn.REFERRAL_BUTTON, callback_data: 'request_referral_link' }
             ],
             [
               { text: messagesEn.EARN_MORE_BUTTON, callback_data: 'earn_more_options' }
-            ],
-            [ // New row for language buttons
-              { text: messagesEn.RUSSIAN_BUTTON, url: 'https://t.me/rpstitans/2' },
-              { text: messagesEn.PERSIAN_BUTTON, url: 'https://t.me/rpstitans/3' },
-              { text: messagesEn.TURKISH_BUTTON, url: 'https://t.me/rpstitans/4' }
             ]
           ]
         }
