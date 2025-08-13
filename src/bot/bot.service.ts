@@ -489,7 +489,8 @@ export class BotService implements OnModuleInit {
             { text: messages.WISHLIST_BUTTON, callback_data: 'wishlist' }
           ],
           [
-            { text: messages.JOIN_CHANNEL_BUTTON, url: 'https://t.me/rps_titans' }
+            { text: messages.JOIN_CHANNEL_BUTTON, url: 'https://t.me/rps_titans' },
+            { text: messages.COMMUNITY_BUTTON, url: 'https://t.me/rpstitans' }
           ],
           [
             { text: messages.REFERRAL_BUTTON, callback_data: 'request_referral_link' }
