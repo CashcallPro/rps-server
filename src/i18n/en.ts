@@ -7,6 +7,7 @@ PRS Titans is the first Win2Earn real-time multiplayer online game on TON blockc
 You win -> take your cash 🚀`,
   WISHLIST_BUTTON: '✅ Whitelist now!',
   JOIN_CHANNEL_BUTTON: '👋 Join Channel',
+  COMMUNITY_BUTTON: '📢 Join Community',
   REFERRAL_BUTTON: '🎁 Referral',
   EARN_MORE_BUTTON: '💵 Earn More!',
   RUSSIAN_BUTTON: '🇷🇺 Russian',

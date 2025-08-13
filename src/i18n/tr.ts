@@ -7,6 +7,7 @@ PRS Titans, TON blok zincirindeki ilk Win2Earn gerçek zamanlı çok oyunculu ç
 Kazanırsınız -> paranızı alırsınız 🚀`,
   WISHLIST_BUTTON: '✅ Şimdi beyaz listeye alın!',
   JOIN_CHANNEL_BUTTON: '👋 Kanala Katıl',
+  COMMUNITY_BUTTON: '📢 Topluluğa Katıl',
   REFERRAL_BUTTON: '🎁 Yönlendirme',
   EARN_MORE_BUTTON: '💵 Daha Fazla Kazan!',
   RUSSIAN_BUTTON: '🇷🇺 Rusça',

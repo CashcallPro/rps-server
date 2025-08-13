@@ -7,6 +7,7 @@ PRS Titans اولین بازی چندنفره آنلاین و بی‌درنگ د
 شما برنده می‌شوید -> پول خود را برمی‌دارید 🚀`,
   WISHLIST_BUTTON: '✅ اکنون در لیست سفید قرار بگیرید!',
   JOIN_CHANNEL_BUTTON: '👋 به کانال بپیوندید',
+  COMMUNITY_BUTTON: '📢 به انجمن بپیوندید',
   REFERRAL_BUTTON: '🎁 ارجاع',
   EARN_MORE_BUTTON: '💵 بیشتر کسب کنید!',
   RUSSIAN_BUTTON: '🇷🇺 روسی',
