@@ -40,6 +40,12 @@ export class User {
   @Prop({ required: true, unique: true })
   telegramUserId: string;
 
+  @Prop({ type: String, required: false })
+  language: string;
+
+  @Prop({ type: String, required: false })
+  pendingReferralCode: string;
+
   @Prop({ required: false })
   refereeId: string;
 

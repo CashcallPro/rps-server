@@ -19,4 +19,16 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString({ message: 'Badge must be a string.' })
   badgeToAdd?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @IsOptional()
+  @IsString()
+  pendingReferralCode?: string;
+
+  @IsOptional()
+  @IsString()
+  refereeId?: string;
 }

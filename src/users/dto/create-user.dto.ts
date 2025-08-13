@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, Min, IsOptional } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -15,4 +15,12 @@ export class CreateUserDto {
   @IsNumber()
   @Min(0)
   coins: number;
+
+  @IsString()
+  @IsOptional()
+  language?: string;
+
+  @IsString()
+  @IsOptional()
+  pendingReferralCode?: string;
 }

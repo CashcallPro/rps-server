@@ -1,12 +1,16 @@
 import { messagesEn } from './en';
+import { messagesRu } from './ru';
+import { messagesTr } from './tr';
+import { messagesFa } from './fa';
 
 export const appMessages = {
   en: messagesEn,
-  // In the future, other languages can be added here:
-  // es: messagesEs,
+  ru: messagesRu,
+  tr: messagesTr,
+  fa: messagesFa,
 };
 
 export const defaultMessages = messagesEn;
 
 // Or a function to get messages based on a language code
-// export const getMessages = (lang: string) => appMessages[lang] || defaultMessages;
+export const getMessages = (lang: string) => appMessages[lang] || defaultMessages;
