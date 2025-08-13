@@ -2,6 +2,7 @@
 
 This project is a backend server for a Rock Paper Scissors game, built with NestJS. It uses MongoDB for data storage and Redis for caching or session management. The application is fully containerized using Docker.
 
+Using docker compose up lunches only mongo and redis instances and doesn't actually lunch/build the backend application
 
 ## Production build
 > docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
