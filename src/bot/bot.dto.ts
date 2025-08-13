@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsInt } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, IsArray, ArrayNotEmpty } from 'class-validator';
 
 export class SendGameScoreDto {
   @IsString()
@@ -22,4 +22,21 @@ export class SendMessageDto {
 
   @IsString()
   chatId: string;
+}
+
+export class SendMessageToAllDto {
+  @IsString()
+  @IsNotEmpty()
+  message: string;
+}
+
+export class SendMessageToListDto {
+  @IsString()
+  @IsNotEmpty()
+  message: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  chatIds: string[];
 }

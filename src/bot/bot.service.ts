@@ -482,4 +482,31 @@ export class BotService implements OnModuleInit {
       this.logger.error('Failed to send photo', e)
     }
   }
+
+  async sendMessageToAllUsers(message: string) {
+    const users = await this.userService.findAll();
+    const results = await Promise.allSettled(
+      users.map(user => this.sendMessage(user.telegramUserId, message))
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - successful;
+
+    this.logger.log(`Finished sending messages to all users. Successful: ${successful}, Failed: ${failed}`);
+
+    return { successful, failed };
+  }
+
+  async sendMessageToUsers(message: string, chatIds: string[]) {
+    const results = await Promise.allSettled(
+      chatIds.map(chatId => this.sendMessage(chatId, message))
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - successful;
+
+    this.logger.log(`Finished sending messages to list of users. Successful: ${successful}, Failed: ${failed}`);
+
+    return { successful, failed };
+  }
 }

@@ -23,6 +23,72 @@
       "response": []
     },
     {
+      "name": "Send Bot Message to All Users",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"Hello to all users from Postman!\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/bot/message/all",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "bot",
+            "message",
+            "all"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Send Bot Message to List of Users",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"Hello to specific users from Postman!\",\n  \"chatIds\": [\"chat_id_1\", \"chat_id_2\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/bot/message/list",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "bot",
+            "message",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Get Admin Coins",
       "request": {
         "method": "GET",
