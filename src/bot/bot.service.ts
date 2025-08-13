@@ -5,7 +5,7 @@ import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
 import { RevshareService } from '../revshare/revshare.service';
 import { Revshare } from 'src/revshare/schemas/revshare.schema';
-import { messagesEn } from 'src/i18n/en';
+import { getMessages } from 'src/i18n';
 import { encryptForUrl } from 'src/utils/crypt';
 
 @Injectable()
@@ -113,47 +113,22 @@ export class BotService implements OnModuleInit {
 
       this.logger.log(`Received /start command from ${username} (ID: ${userId}) referralCode: ${referralCode}`);
 
-      const welcomeMessage: string = messagesEn.WELCOME_MESSAGE;
+      const userExists = await this.userService.findOneByTelegramUserId(userId);
 
-      const options: TelegramBot.SendMessageOptions = {
-        // You can use 'HTML' or 'MarkdownV2' for text formatting
-        // parse_mode: 'HTML', // Example: if you wanted to use <b>bold</b> tags
-
-        reply_markup: {
-          inline_keyboard: [
-            // Each array within inline_keyboard represents a row of buttons
-            [
-              { text: messagesEn.WISHLIST_BUTTON, callback_data: 'wishlist' } // Replace with actual URL
-            ],
-            [
-              { text: messagesEn.JOIN_CHANNEL_BUTTON, url: 'https://t.me/rps_titans' } // Replace with actual URL
-            ],
-            [
-              { text: messagesEn.REFERRAL_BUTTON, callback_data: 'request_referral_link' }
-            ],
-            [
-              { text: messagesEn.EARN_MORE_BUTTON, callback_data: 'earn_more_options' }
-            ],
-            [ // New row for language buttons
-              { text: messagesEn.RUSSIAN_BUTTON, url: 'https://t.me/rpstitans/2' },
-              { text: messagesEn.PERSIAN_BUTTON, url: 'https://t.me/rpstitans/3' },
-              { text: messagesEn.TURKISH_BUTTON, url: 'https://t.me/rpstitans/4' }
-            ]
-          ]
-        }
-      };
+      if (userExists && userExists.language) {
+        // If the user exists and has a language set, send the welcome message directly
+        this.sendWelcomeMessage(chatId, userExists.language);
+      } else {
+        // If the user is new or hasn't selected a language, send the language selection message
+        this.sendLanguageSelection(chatId);
+      }
 
       if (referralCode == userId) {
-        this.sendMessage(chatId, messagesEn.CANT_REFER_SELF);
+        this.sendMessage(chatId, getMessages('en').CANT_REFER_SELF);
         return
       }
 
-      const userExists = await this.userService.findOneByTelegramUserId(userId)
-
-      if (userExists) {
-        // this.sendMessage(chatId, messagesEn.ALREADY_JOINED);
-        // Welcome message will be sent after this block
-      } else {
+      if (!userExists) {
         // Create user only if they don't exist
         const user: CreateUserDto = {
           coins: this.referralBonus!,
@@ -162,46 +137,64 @@ export class BotService implements OnModuleInit {
         }
 
         if (referralCode) {
-          user.refereeId = referralCode
-          const refereeUser = await this.userService.findOneByTelegramUserId(referralCode)
-          if (refereeUser) {
-            this.userService.updateByTelegramId(referralCode, { referralToAdd: userId })
-            this.userService.addCoins(refereeUser.username, this.referreBonus!)
-            this.sendMessage(chatId, messagesEn.JOINED_WITH_REFERRAL(refereeUser?.username || '', this.referralBonus!));
-            this.sendMessage(refereeUser.telegramUserId, messagesEn.NEW_REFERRAL(user.username, this.referreBonus!))
-          }
+          user.pendingReferralCode = referralCode;
         }
         await this.userService.create(user)
       }
-
-      // Send welcome message as the final operation for all /start command invocations
-      this.bot.sendMessage(chatId, welcomeMessage, options)
-        .then(() => {
-          console.log(`Sent welcome message with inline keyboard to chat ID: ${chatId} for /start command`);
-        })
-        .catch((error: Error) => {
-          console.error(`Error sending message to ${chatId}:`, error.message);
-        });
     });
 
-    this.bot.onText(/\/refer/, (msg) => {
-      const message = messagesEn.REFERRAL_LINK_MESSAGE(msg.from?.id || '');
+    this.bot.onText(/\/refer/, async (msg) => {
+      if (!msg.from) return;
+      const user = await this.userService.findOneByTelegramUserId(msg.from.id.toString());
+      const messages = getMessages(user?.language || 'en');
+      const message = messages.REFERRAL_LINK_MESSAGE(msg.from?.id || '');
       this.sendMessage(msg.chat.id, message);
     })
 
     this.bot.on("callback_query", async (callbackQuery) => {
-      if (callbackQuery.data === 'request_referral_link') {
+      if (callbackQuery.data && callbackQuery.data.startsWith('set_language_')) {
+        const lang = callbackQuery.data.split('_')[2];
+        if (!callbackQuery.message) return;
+        const chatId = callbackQuery.message.chat.id;
+        const userId = callbackQuery.from.id.toString();
+
+        const user = await this.userService.findOneByTelegramUserId(userId);
+        if (user) {
+          await this.userService.updateByTelegramId(userId, { language: lang });
+          if (user.pendingReferralCode) {
+            const refereeUser = await this.userService.findOneByTelegramUserId(user.pendingReferralCode);
+            if (refereeUser) {
+              const messages = getMessages(lang);
+              const refereeMessages = getMessages(refereeUser.language || 'en');
+
+              this.userService.updateByTelegramId(refereeUser.telegramUserId, { referralToAdd: userId });
+              this.userService.addCoins(refereeUser.username, this.referreBonus!);
+              this.userService.updateByTelegramId(userId, { refereeId: refereeUser.telegramUserId, pendingReferralCode: '' });
+
+              this.sendMessage(chatId, messages.JOINED_WITH_REFERRAL(refereeUser.username, this.referralBonus!));
+              this.sendMessage(refereeUser.telegramUserId, refereeMessages.NEW_REFERRAL(user.username, this.referreBonus!));
+            }
+          }
+        }
+
+        this.sendWelcomeMessage(chatId, lang);
+        this.bot.answerCallbackQuery(callbackQuery.id);
+        return;
+      }
+      else if (callbackQuery.data === 'request_referral_link') {
         const chatId = callbackQuery.message?.chat.id;
         const userId = callbackQuery.from.id;
 
         if (chatId) {
-          const message = messagesEn.REFERRAL_LINK_MESSAGE(userId);
+          const user = await this.userService.findOneByTelegramUserId(userId.toString());
+          const messages = getMessages(user?.language || 'en');
+          const message = messages.REFERRAL_LINK_MESSAGE(userId);
           this.bot.sendMessage(chatId, message);
           this.bot.answerCallbackQuery(callbackQuery.id); // Acknowledge
           return; // Handled, no further processing needed for this callback type
         } else {
           this.logger.warn(`ChatId not available for callback_query 'request_referral_link' from user ${userId}`);
-          this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_PROCESSING_REFERRAL_REQUEST });
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: getMessages('en').ERROR_PROCESSING_REFERRAL_REQUEST });
           return; // Handled
         }
       }
@@ -215,11 +208,12 @@ export class BotService implements OnModuleInit {
             this.bot.answerCallbackQuery(callbackQuery.id)
             return
           }
+          const messages = getMessages(user.language || 'en');
           const alreadyWishlisted = user?.badges.find((badge) => badge === 'og')
 
           if (!alreadyWishlisted) {
             await this.userService.updateByTelegramId(telegramUserId, { badgeToAdd: 'og' })
-            this.bot.sendPhoto(chatId, this.wishlistPhoto, { caption: messagesEn.WISHLIST_SUCCESS(user?.username) })
+            this.bot.sendPhoto(chatId, this.wishlistPhoto, { caption: messages.WISHLIST_SUCCESS(user?.username) })
           }
         }
         this.bot.answerCallbackQuery(callbackQuery.id)
@@ -229,13 +223,15 @@ export class BotService implements OnModuleInit {
       else if (callbackQuery.data === 'earn_more_options') {
         const chatId = callbackQuery.message?.chat.id;
         if (chatId) {
-          const messageText: string = messagesEn.REV_SHARE_INFO;
+          const user = await this.userService.findOneByTelegramUserId(callbackQuery.from.id.toString());
+          const messages = getMessages(user?.language || 'en');
+          const messageText: string = messages.REV_SHARE_INFO;
           const messageOptions: TelegramBot.SendMessageOptions = {
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: messagesEn.PARTNER_YES_BUTTON, callback_data: 'partner_yes' },
-                  { text: messagesEn.PARTNER_NO_BUTTON, callback_data: 'partner_no' }
+                  { text: messages.PARTNER_YES_BUTTON, callback_data: 'partner_yes' },
+                  { text: messages.PARTNER_NO_BUTTON, callback_data: 'partner_no' }
                 ]
               ]
             }
@@ -244,7 +240,7 @@ export class BotService implements OnModuleInit {
           this.bot.answerCallbackQuery(callbackQuery.id); // Acknowledge the 'Earn More' button press
         } else {
           this.logger.warn(`ChatId not available for callback_query 'earn_more_options' from user ${callbackQuery.from.id}`);
-          this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_COULD_NOT_PROCESS_REQUEST });
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: getMessages('en').ERROR_COULD_NOT_PROCESS_REQUEST });
         }
         return; // Handled
       }
@@ -255,29 +251,31 @@ export class BotService implements OnModuleInit {
 
         if (chatId) {
           try {
+            const user = await this.userService.findOneByTelegramUserId(telegramUserId);
+            const messages = getMessages(user?.language || 'en');
             const existingRequest = await this.revshareService.findRequestByTelegramUserId(telegramUserId);
             if (existingRequest) {
 
               if (existingRequest.status === 'approved') {
-                this.bot.sendMessage(chatId, messagesEn.REV_SHARE_REQUEST_APPROVED);
+                this.bot.sendMessage(chatId, messages.REV_SHARE_REQUEST_APPROVED);
                 this.bot.answerCallbackQuery(callbackQuery.id);
                 return
               }
 
-              this.bot.sendMessage(chatId, messagesEn.REV_SHARE_REQUEST_PROCESSING);
+              this.bot.sendMessage(chatId, messages.REV_SHARE_REQUEST_PROCESSING);
             } else {
               await this.revshareService.createRequest(telegramUserId, undefined, undefined, 'Initial request from partner_yes');
-              const instructions = messagesEn.PARTNER_INSTRUCTIONS;
+              const instructions = messages.PARTNER_INSTRUCTIONS;
               this.bot.sendMessage(chatId, instructions);
             }
             this.bot.answerCallbackQuery(callbackQuery.id);
           } catch (error) {
             this.logger.error(`Error processing 'partner_yes' for user ${telegramUserId}:`, error);
-            this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_TRY_AGAIN });
+            this.bot.answerCallbackQuery(callbackQuery.id, { text: getMessages('en').ERROR_TRY_AGAIN });
           }
         } else {
           this.logger.warn(`ChatId not available for callback_query 'partner_yes' from user ${telegramUserId}`);
-          this.bot.answerCallbackQuery(callbackQuery.id, { text: messagesEn.ERROR_COULD_NOT_PROCESS_REQUEST });
+          this.bot.answerCallbackQuery(callbackQuery.id, { text: getMessages('en').ERROR_COULD_NOT_PROCESS_REQUEST });
         }
         return; // Handled
       }
@@ -285,7 +283,9 @@ export class BotService implements OnModuleInit {
       else if (callbackQuery.data === 'partner_no') {
         const chatId = callbackQuery.message?.chat.id;
         if (chatId) {
-          this.sendMessage(chatId, messagesEn.PARTNER_NO_MESSAGE)
+          const user = await this.userService.findOneByTelegramUserId(callbackQuery.from.id.toString());
+          const messages = getMessages(user?.language || 'en');
+          this.sendMessage(chatId, messages.PARTNER_NO_MESSAGE)
         }
         this.bot.answerCallbackQuery(callbackQuery.id)
         return
@@ -371,7 +371,9 @@ export class BotService implements OnModuleInit {
 
                 // Now send confirmation to the user who added the bot
                 try {
-                  const finalMessageToUser = messagesEn.BOT_ADDED_TO_GROUP_CONFIRMATION(groupTitle || 'Unnamed Group');
+                  const user = await this.userService.findOneByTelegramUserId(adderUserId);
+                  const messages = getMessages(user?.language || 'en');
+                  const finalMessageToUser = messages.BOT_ADDED_TO_GROUP_CONFIRMATION(groupTitle || 'Unnamed Group');
                   await this.sendMessage(adderUserId, finalMessageToUser);
                   this.logger.log(`"Bot added to group" confirmation sent to user ${adderUserId}.`);
                 } catch (messageError) {
@@ -456,6 +458,49 @@ export class BotService implements OnModuleInit {
     });
 
     this.logger.log(`Telegram bot initialized with game short name: ${this.gameShortName}. Listening for commands...`);
+  }
+
+  private async sendLanguageSelection(chatId: number | string) {
+    const options: TelegramBot.SendMessageOptions = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: 'English', callback_data: 'set_language_en' },
+            { text: 'Русский', callback_data: 'set_language_ru' },
+          ],
+          [
+            { text: 'Türkiye', callback_data: 'set_language_tr' },
+            { text: 'فارسی', callback_data: 'set_language_fa' },
+          ],
+        ],
+      },
+    };
+    this.bot.sendMessage(chatId, 'Please select your language:', options);
+  }
+
+  private async sendWelcomeMessage(chatId: number | string, language: string) {
+    const messages = getMessages(language);
+    const welcomeMessage: string = messages.WELCOME_MESSAGE;
+
+    const options: TelegramBot.SendMessageOptions = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: messages.WISHLIST_BUTTON, callback_data: 'wishlist' }
+          ],
+          [
+            { text: messages.JOIN_CHANNEL_BUTTON, url: 'https://t.me/rps_titans' }
+          ],
+          [
+            { text: messages.REFERRAL_BUTTON, callback_data: 'request_referral_link' }
+          ],
+          [
+            { text: messages.EARN_MORE_BUTTON, callback_data: 'earn_more_options' }
+          ],
+        ]
+      }
+    };
+    this.bot.sendMessage(chatId, welcomeMessage, options);
   }
 
   // Optional: If you want to send messages from other parts of your NestJS app via the bot
